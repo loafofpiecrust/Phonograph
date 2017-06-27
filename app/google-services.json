@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "250873439586",
+    "firebase_url": "https://phonograph-efd2b.firebaseio.com",
+    "project_id": "phonograph-efd2b",
+    "storage_bucket": "phonograph-efd2b.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:250873439586:android:b1c41f5129e1aaef",
+        "android_client_info": {
+          "package_name": "com.kabouzeid.gramophone.debug"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "250873439586-m7oni2s3pb93ovkfaa4ldnuub8e38c8a.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kabouzeid.gramophone.debug",
+            "certificate_hash": "a46522aeb3690bf6e306087f7ed956d6ba01eb95"
+          }
+        },
+        {
+          "client_id": "250873439586-jq2qqcqs16oi4iqh0dc7nfvke0gcahfl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnXTsPHTtKaq5lQKgmQvSUnXUNGOUZWaM"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "250873439586-jq2qqcqs16oi4iqh0dc7nfvke0gcahfl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
