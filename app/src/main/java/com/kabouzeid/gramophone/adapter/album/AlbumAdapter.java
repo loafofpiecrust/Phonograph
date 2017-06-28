@@ -12,6 +12,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import com.bumptech.glide.Glide;
+import com.kabouzeid.appthemehelper.util.ATHUtil;
 import com.kabouzeid.appthemehelper.util.ColorUtil;
 import com.kabouzeid.appthemehelper.util.MaterialValueHelper;
 import com.kabouzeid.gramophone.R;
@@ -25,6 +26,7 @@ import com.kabouzeid.gramophone.model.Album;
 import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.util.MusicUtil;
 import com.kabouzeid.gramophone.util.NavigationUtil;
+import com.kabouzeid.gramophone.util.PhonographColorUtil;
 import com.simplecityapps.recyclerview_fastscroll.views.FastScrollRecyclerView;
 
 import java.util.ArrayList;
@@ -129,24 +131,32 @@ public class AlbumAdapter extends AbsMultiSelectAdapter<AlbumAdapter.ViewHolder,
     protected void loadAlbumCover(Album album, final ViewHolder holder) {
         if (holder.image == null) return;
 
-        SongGlideRequest.Builder.from(Glide.with(activity), album.safeGetFirstSong())
-                .checkIgnoreMediaStore(activity)
-                .generatePalette(activity).build()
-                .into(new PhonographColoredTarget(holder.image) {
-                    @Override
-                    public void onLoadCleared(Drawable placeholder) {
-                        super.onLoadCleared(placeholder);
-                        setColors(getDefaultFooterColor(), holder);
+        SongGlideRequest.Builder.from(activity, album.safeGetFirstSong())
+                .generatePalette(activity)
+                .build(palette -> {
+                    int std = ATHUtil.resolveColor(holder.image.getContext(), R.attr.defaultFooterColor);
+                    if (usePalette) {
+                        setColors(PhonographColorUtil.getColor(palette, std), holder);
+                    } else {
+                        setColors(std, holder);
                     }
-
-                    @Override
-                    public void onColorReady(int color) {
-                        if (usePalette)
-                            setColors(color, holder);
-                        else
-                            setColors(getDefaultFooterColor(), holder);
-                    }
-                });
+                })
+                .into(holder.image);
+//                .into(new PhonographColoredTarget(holder.image) {
+//                    @Override
+//                    public void onLoadCleared(Drawable placeholder) {
+//                        super.onLoadCleared(placeholder);
+//                        setColors(getDefaultFooterColor(), holder);
+//                    }
+//
+//                    @Override
+//                    public void onColorReady(int color) {
+//                        if (usePalette)
+//                            setColors(color, holder);
+//                        else
+//                            setColors(getDefaultFooterColor(), holder);
+//                    }
+//                });
     }
 
     @Override

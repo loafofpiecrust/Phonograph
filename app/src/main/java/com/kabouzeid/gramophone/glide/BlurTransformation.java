@@ -15,9 +15,12 @@ import android.support.annotation.NonNull;
 
 import com.bumptech.glide.load.engine.bitmap_recycle.BitmapPool;
 import com.bumptech.glide.load.resource.bitmap.BitmapTransformation;
+import com.bumptech.glide.signature.ObjectKey;
 import com.kabouzeid.gramophone.BuildConfig;
 import com.kabouzeid.gramophone.helper.StackBlur;
 import com.kabouzeid.gramophone.util.ImageUtil;
+
+import java.security.MessageDigest;
 
 /**
  * @author Karim Abou Zeid (kabouzeid)
@@ -43,6 +46,11 @@ public class BlurTransformation extends BitmapTransformation {
     private BlurTransformation(Builder builder, BitmapPool bitmapPool) {
         super(bitmapPool);
         init(builder);
+    }
+
+    @Override
+    public void updateDiskCacheKey(MessageDigest messageDigest) {
+        new ObjectKey(getId()).updateDiskCacheKey(messageDigest);
     }
 
     public static class Builder {
@@ -141,7 +149,6 @@ public class BlurTransformation extends BitmapTransformation {
         return StackBlur.blur(out, blurRadius);
     }
 
-    @Override
     public String getId() {
         return "BlurTransformation(radius=" + blurRadius + ", sampling=" + sampling + ")";
     }

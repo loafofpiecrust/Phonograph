@@ -1,5 +1,7 @@
 package com.kabouzeid.gramophone.adapter;
 
+import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.support.annotation.NonNull;
 import android.support.v4.util.Pair;
@@ -9,10 +11,15 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.bumptech.glide.GenericTransitionOptions;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.Priority;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions;
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
+import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.Target;
+import com.github.florent37.glidepalette.GlidePalette;
 import com.kabouzeid.appthemehelper.util.ATHUtil;
 import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.adapter.base.MediaEntryViewHolder;
@@ -29,6 +36,9 @@ import com.kabouzeid.gramophone.util.NavigationUtil;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.kabouzeid.gramophone.glide.SongGlideRequest.DEFAULT_DISK_CACHE_STRATEGY;
+import static com.kabouzeid.gramophone.glide.SongGlideRequest.createSignature;
 
 /**
  * @author Karim Abou Zeid (kabouzeid)
@@ -77,23 +87,44 @@ public class SearchAdapter extends RecyclerView.Adapter<SearchAdapter.ViewHolder
                 final Album album = (Album) dataSet.get(position);
                 holder.title.setText(album.getTitle());
                 holder.text.setText(album.getArtistName());
-                SongGlideRequest.Builder.from(Glide.with(activity), album.safeGetFirstSong())
-                        .checkIgnoreMediaStore(activity).build()
+
+                // TODO: Outsource
+                Uri uri = MusicUtil.getMediaStoreAlbumCoverUri(album.getId());
+                Glide.with(activity).load(uri)
+                        .apply(new RequestOptions()
+                                .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
+                                .signature(createSignature(album.safeGetFirstSong())))
+                        .transition(new DrawableTransitionOptions().crossFade())
                         .into(holder.image);
+//                SongGlideRequest.Builder.from(Glide.with(activity), album.safeGetFirstSong())
+//                        .checkIgnoreMediaStore(activity).build()
+//                        .into(holder.image);
                 break;
             case ARTIST:
                 final Artist artist = (Artist) dataSet.get(position);
                 holder.title.setText(artist.getName());
                 holder.text.setText(MusicUtil.getArtistInfoString(activity, artist));
-                Glide.with(activity)
-                        .load(new ArtistImage(artist.getName(), false))
-                        .diskCacheStrategy(DiskCacheStrategy.SOURCE)
-                        .placeholder(R.drawable.default_artist_image)
-                        .animate(android.R.anim.fade_in)
-                        .priority(Priority.LOW)
-                        .signature(ArtistSignatureUtil.getInstance(activity).getArtistSignature(artist.getName()))
-                        .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+
+                // TODO: Outsource
+                Glide.with(activity).load(new ArtistImage(artist.getName(), false))
+                        .apply(new RequestOptions()
+                                .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
+                                .signature(ArtistSignatureUtil.getInstance(activity).getArtistSignature(artist.getName()))
+                                .placeholder(R.drawable.default_artist_image)
+                                .priority(Priority.LOW)
+                                .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL))
+                        .transition(new DrawableTransitionOptions().crossFade())
                         .into(holder.image);
+
+//                Glide.with(activity)
+//                        .load(new ArtistImage(artist.getName(), false))
+//                        .diskCacheStrategy(DiskCacheStrategy.SOURCE)
+//                        .placeholder(R.drawable.default_artist_image)
+//                        .animate(android.R.anim.fade_in)
+//                        .priority(Priority.LOW)
+//                        .signature(ArtistSignatureUtil.getInstance(activity).getArtistSignature(artist.getName()))
+//                        .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+//                        .into(holder.image);
                 break;
             case SONG:
                 final Song song = (Song) dataSet.get(position);

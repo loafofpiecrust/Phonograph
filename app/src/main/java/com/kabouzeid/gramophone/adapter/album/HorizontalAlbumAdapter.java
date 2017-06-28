@@ -1,5 +1,6 @@
 package com.kabouzeid.gramophone.adapter.album;
 
+import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -9,13 +10,16 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import com.bumptech.glide.Glide;
+import com.kabouzeid.appthemehelper.util.ATHUtil;
 import com.kabouzeid.appthemehelper.util.ColorUtil;
 import com.kabouzeid.appthemehelper.util.MaterialValueHelper;
+import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.glide.PhonographColoredTarget;
 import com.kabouzeid.gramophone.glide.SongGlideRequest;
 import com.kabouzeid.gramophone.helper.HorizontalAdapterHelper;
 import com.kabouzeid.gramophone.interfaces.CabHolder;
 import com.kabouzeid.gramophone.model.Album;
+import com.kabouzeid.gramophone.util.PhonographColorUtil;
 
 import java.util.ArrayList;
 
@@ -54,24 +58,32 @@ public class HorizontalAlbumAdapter extends AlbumAdapter {
     protected void loadAlbumCover(Album album, final ViewHolder holder) {
         if (holder.image == null) return;
 
-        SongGlideRequest.Builder.from(Glide.with(activity), album.safeGetFirstSong())
-                .checkIgnoreMediaStore(activity)
-                .generatePalette(activity).build()
-                .into(new PhonographColoredTarget(holder.image) {
-                    @Override
-                    public void onLoadCleared(Drawable placeholder) {
-                        super.onLoadCleared(placeholder);
-                        setColors(getAlbumArtistFooterColor(), holder);
+        SongGlideRequest.Builder.from(activity, album.safeGetFirstSong())
+                .generatePalette(activity)
+                .build(palette -> {
+                    int std = ATHUtil.resolveColor(holder.image.getContext(), R.attr.cardBackgroundColor);
+                    if (usePalette) {
+                        setColors(PhonographColorUtil.getColor(palette, std), holder);
+                    } else {
+                        setColors(std, holder);
                     }
-
-                    @Override
-                    public void onColorReady(int color) {
-                        if (usePalette)
-                            setColors(color, holder);
-                        else
-                            setColors(getAlbumArtistFooterColor(), holder);
-                    }
-                });
+                })
+                .into(holder.image);
+//                .into(new PhonographColoredTarget(holder.image) {
+//                    @Override
+//                    public void onLoadCleared(Drawable placeholder) {
+//                        super.onLoadCleared(placeholder);
+//                        setColors(getAlbumArtistFooterColor(), holder);
+//                    }
+//
+//                    @Override
+//                    public void onColorReady(int color) {
+//                        if (usePalette)
+//                            setColors(color, holder);
+//                        else
+//                            setColors(getAlbumArtistFooterColor(), holder);
+//                    }
+//                });
     }
 
     @Override

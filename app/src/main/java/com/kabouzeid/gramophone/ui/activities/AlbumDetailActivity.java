@@ -2,6 +2,9 @@ package com.kabouzeid.gramophone.ui.activities;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -19,8 +22,12 @@ import android.widget.TextView;
 import com.afollestad.materialcab.MaterialCab;
 import com.afollestad.materialdialogs.util.DialogUtils;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.bumptech.glide.request.RequestListener;
+import com.bumptech.glide.request.RequestOptions;
+import com.bumptech.glide.request.target.SimpleTarget;
 import com.bumptech.glide.request.target.Target;
+import com.bumptech.glide.request.transition.Transition;
 import com.github.ksoichiro.android.observablescrollview.ObservableRecyclerView;
 import com.kabouzeid.appthemehelper.util.ColorUtil;
 import com.kabouzeid.appthemehelper.util.MaterialValueHelper;
@@ -144,29 +151,25 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
     }
 
     private void loadAlbumCover() {
-        SongGlideRequest.Builder.from(Glide.with(this), getAlbum().safeGetFirstSong())
-                .checkIgnoreMediaStore(this)
-                .generatePalette(this).build()
-                .dontAnimate()
-                .listener(new RequestListener<Object, BitmapPaletteWrapper>() {
-                    @Override
-                    public boolean onException(Exception e, Object model, Target<BitmapPaletteWrapper> target, boolean isFirstResource) {
-                        supportStartPostponedEnterTransition();
-                        return false;
-                    }
-
-                    @Override
-                    public boolean onResourceReady(BitmapPaletteWrapper resource, Object model, Target<BitmapPaletteWrapper> target, boolean isFromMemoryCache, boolean isFirstResource) {
-                        supportStartPostponedEnterTransition();
-                        return false;
-                    }
+        SongGlideRequest.Builder.from(this, getAlbum().safeGetFirstSong())
+                .generatePalette(this).build(palette -> {
+                    setColors(PhonographColorUtil.getColor(palette, Color.BLACK));
+                    supportStartPostponedEnterTransition();
                 })
-                .into(new PhonographColoredTarget(albumArtImageView) {
-                    @Override
-                    public void onColorReady(int color) {
-                        setColors(color);
-                    }
-                });
+                .apply(RequestOptions.fitCenterTransform())
+                .transition(new DrawableTransitionOptions().dontTransition())
+                .into(albumArtImageView);
+//                .into(new SimpleTarget<Drawable>() {
+//                    @Override
+//                    public void onResourceReady(Drawable resource, Transition<? super Drawable> transition) {
+//                        supportStartPostponedEnterTransition();
+//                    }
+//
+//                    @Override
+//                    public void onLoadFailed(Drawable res) {
+//                        supportStartPostponedEnterTransition();
+//                    }
+//                });
     }
 
     private void setColors(int color) {

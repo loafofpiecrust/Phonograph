@@ -1,15 +1,18 @@
 package com.kabouzeid.gramophone.glide.artistimage;
 
 import android.content.Context;
+import android.support.annotation.Nullable;
 
 import com.bumptech.glide.integration.okhttp3.OkHttpUrlLoader;
+import com.bumptech.glide.load.Options;
 import com.bumptech.glide.load.data.DataFetcher;
-import com.bumptech.glide.load.model.GenericLoaderFactory;
 import com.bumptech.glide.load.model.GlideUrl;
 import com.bumptech.glide.load.model.ModelLoader;
 import com.bumptech.glide.load.model.ModelLoaderFactory;
-import com.bumptech.glide.load.model.stream.StreamModelLoader;
+import com.bumptech.glide.load.model.MultiModelLoaderFactory;
+import com.bumptech.glide.signature.ObjectKey;
 import com.kabouzeid.gramophone.lastfm.rest.LastFMRestClient;
+import com.kabouzeid.gramophone.service.MusicService;
 
 import java.io.InputStream;
 import java.util.concurrent.TimeUnit;
@@ -20,7 +23,7 @@ import okhttp3.OkHttpClient;
  * @author Karim Abou Zeid (kabouzeid)
  */
 
-public class ArtistImageLoader implements StreamModelLoader<ArtistImage> {
+public class ArtistImageLoader implements ModelLoader<ArtistImage, InputStream> {
     // we need these very low values to make sure our artist image loading calls doesn't block the image loading queue
     private static final int TIMEOUT = 500;
 
@@ -34,9 +37,20 @@ public class ArtistImageLoader implements StreamModelLoader<ArtistImage> {
         this.urlLoader = urlLoader;
     }
 
-    @Override
     public DataFetcher<InputStream> getResourceFetcher(ArtistImage model, int width, int height) {
         return new ArtistImageFetcher(context, lastFMClient, model, urlLoader, width, height);
+    }
+
+    @Nullable
+    @Override
+    public LoadData<InputStream> buildLoadData(ArtistImage model, int width, int height, Options options) {
+        return new LoadData<>(new ObjectKey(model.artistName),
+                new ArtistImageFetcher(MusicService.getInstance(), lastFMClient, model, urlLoader, width, height));
+    }
+
+    @Override
+    public boolean handles(ArtistImage model) {
+        return true;
     }
 
     public static class Factory implements ModelLoaderFactory<ArtistImage, InputStream> {
@@ -57,8 +71,8 @@ public class ArtistImageLoader implements StreamModelLoader<ArtistImage> {
         }
 
         @Override
-        public ModelLoader<ArtistImage, InputStream> build(Context context, GenericLoaderFactory factories) {
-            return new ArtistImageLoader(context, lastFMClient, okHttpFactory.build(context, factories));
+        public ModelLoader<ArtistImage, InputStream> build(MultiModelLoaderFactory multiFactory) {
+            return new ArtistImageLoader(null, lastFMClient, okHttpFactory.build(multiFactory));
         }
 
         @Override

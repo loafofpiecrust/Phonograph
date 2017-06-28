@@ -16,19 +16,19 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
+import android.support.v7.graphics.Palette;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.RemoteViews;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.request.animation.GlideAnimation;
 import com.bumptech.glide.request.target.SimpleTarget;
 import com.bumptech.glide.request.target.Target;
+import com.bumptech.glide.request.transition.Transition;
 import com.kabouzeid.appthemehelper.util.ColorUtil;
 import com.kabouzeid.appthemehelper.util.MaterialValueHelper;
 import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.glide.SongGlideRequest;
-import com.kabouzeid.gramophone.glide.palette.BitmapPaletteWrapper;
 import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.service.MusicService;
 import com.kabouzeid.gramophone.ui.activities.MainActivity;
@@ -40,7 +40,7 @@ public class PlayingNotificationImpl implements PlayingNotification {
 
     private MusicService service;
 
-    private Target<BitmapPaletteWrapper> target;
+    private Target<Bitmap> target;
 
     private boolean stopped;
 
@@ -98,72 +98,77 @@ public class PlayingNotificationImpl implements PlayingNotification {
             @Override
             public void run() {
                 if (target != null) {
-                    Glide.clear(target);
+                    Glide.with(service).clear(target);
                 }
-                target = SongGlideRequest.Builder.from(Glide.with(service), song)
-                        .checkIgnoreMediaStore(service)
-                        .generatePalette(service).build()
-                        .into(new SimpleTarget<BitmapPaletteWrapper>(bigNotificationImageSize, bigNotificationImageSize) {
+
+                target = SongGlideRequest.Builder.from(service, song)
+                        .asBitmap().build()
+                        .into(new SimpleTarget<Bitmap>(bigNotificationImageSize, bigNotificationImageSize) {
                             @Override
-                            public void onResourceReady(BitmapPaletteWrapper resource, GlideAnimation<? super BitmapPaletteWrapper> glideAnimation) {
-                                update(resource.getBitmap(), PhonographColorUtil.getColor(resource.getPalette(), Color.TRANSPARENT));
+                            public void onResourceReady(Bitmap resource, Transition<? super Bitmap> glideAnimation) {
+                                update(resource);
                             }
 
                             @Override
-                            public void onLoadFailed(Exception e, Drawable errorDrawable) {
-                                super.onLoadFailed(e, errorDrawable);
-                                update(null, Color.TRANSPARENT);
+                            public void onLoadFailed(Drawable errorDrawable) {
+                                super.onLoadFailed(errorDrawable);
+                                update(null);
                             }
 
-                            private void update(@Nullable Bitmap bitmap, int bgColor) {
+                            private void update(@Nullable Bitmap bitmap) {
                                 if (bitmap != null) {
                                     notificationLayout.setImageViewBitmap(R.id.image, bitmap);
                                     notificationLayoutBig.setImageViewBitmap(R.id.image, bitmap);
+
+                                    Palette palette = PhonographColorUtil.generatePalette(bitmap);
+                                    int color = PhonographColorUtil.getColor(palette, Color.TRANSPARENT);
+
+                                    if (!PreferenceUtil.getInstance(service).coloredNotification()) {
+                                        color = Color.TRANSPARENT;
+                                    }
+                                    setBackgroundColor(color);
+                                    setNotificationContent(color == Color.TRANSPARENT ? Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP : ColorUtil.isColorLight(color));
+
                                 } else {
                                     notificationLayout.setImageViewResource(R.id.image, R.drawable.default_album_art);
                                     notificationLayoutBig.setImageViewResource(R.id.image, R.drawable.default_album_art);
                                 }
-
-                                if (!PreferenceUtil.getInstance(service).coloredNotification()) {
-                                    bgColor = Color.TRANSPARENT;
-                                }
-                                setBackgroundColor(bgColor);
-                                setNotificationContent(bgColor == Color.TRANSPARENT ? Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP : ColorUtil.isColorLight(bgColor));
 
                                 if (stopped)
                                     return; // notification has been stopped before loading was finished
                                 service.startForeground(NOTIFICATION_ID, notification);
                             }
 
-                            private void setBackgroundColor(int color) {
-                                notificationLayout.setInt(R.id.root, "setBackgroundColor", color);
-                                notificationLayoutBig.setInt(R.id.root, "setBackgroundColor", color);
-                            }
-
-                            private void setNotificationContent(boolean dark) {
-                                int primary = MaterialValueHelper.getPrimaryTextColor(service, dark);
-                                int secondary = MaterialValueHelper.getSecondaryTextColor(service, dark);
-
-                                Bitmap prev = createBitmap(Util.getTintedVectorDrawable(service, R.drawable.ic_skip_previous_white_24dp, primary), 1.5f);
-                                Bitmap next = createBitmap(Util.getTintedVectorDrawable(service, R.drawable.ic_skip_next_white_24dp, primary), 1.5f);
-                                Bitmap playPause = createBitmap(Util.getTintedVectorDrawable(service, isPlaying ? R.drawable.ic_pause_white_24dp : R.drawable.ic_play_arrow_white_24dp, primary), 1.5f);
-                                Bitmap close = createBitmap(Util.getTintedVectorDrawable(service, R.drawable.ic_close_white_24dp, secondary), 1f);
-
-                                notificationLayout.setTextColor(R.id.title, primary);
-                                notificationLayout.setTextColor(R.id.text, secondary);
-                                notificationLayout.setImageViewBitmap(R.id.action_prev, prev);
-                                notificationLayout.setImageViewBitmap(R.id.action_next, next);
-                                notificationLayout.setImageViewBitmap(R.id.action_play_pause, playPause);
-
-                                notificationLayoutBig.setTextColor(R.id.title, primary);
-                                notificationLayoutBig.setTextColor(R.id.text, secondary);
-                                notificationLayoutBig.setTextColor(R.id.text2, secondary);
-                                notificationLayoutBig.setImageViewBitmap(R.id.action_prev, prev);
-                                notificationLayoutBig.setImageViewBitmap(R.id.action_next, next);
-                                notificationLayoutBig.setImageViewBitmap(R.id.action_play_pause, playPause);
-                                notificationLayoutBig.setImageViewBitmap(R.id.action_quit, close);
-                            }
                         });
+            }
+
+            private void setBackgroundColor(int color) {
+                notificationLayout.setInt(R.id.root, "setBackgroundColor", color);
+                notificationLayoutBig.setInt(R.id.root, "setBackgroundColor", color);
+            }
+
+            private void setNotificationContent(boolean dark) {
+                int primary = MaterialValueHelper.getPrimaryTextColor(service, dark);
+                int secondary = MaterialValueHelper.getSecondaryTextColor(service, dark);
+
+                Bitmap prev = createBitmap(Util.getTintedVectorDrawable(service, R.drawable.ic_skip_previous_white_24dp, primary), 1.5f);
+                Bitmap next = createBitmap(Util.getTintedVectorDrawable(service, R.drawable.ic_skip_next_white_24dp, primary), 1.5f);
+                Bitmap playPause = createBitmap(Util.getTintedVectorDrawable(service, isPlaying ? R.drawable.ic_pause_white_24dp : R.drawable.ic_play_arrow_white_24dp, primary), 1.5f);
+                Bitmap close = createBitmap(Util.getTintedVectorDrawable(service, R.drawable.ic_close_white_24dp, secondary), 1f);
+
+                notificationLayout.setTextColor(R.id.title, primary);
+                notificationLayout.setTextColor(R.id.text, secondary);
+                notificationLayout.setImageViewBitmap(R.id.action_prev, prev);
+                notificationLayout.setImageViewBitmap(R.id.action_next, next);
+                notificationLayout.setImageViewBitmap(R.id.action_play_pause, playPause);
+
+                notificationLayoutBig.setTextColor(R.id.title, primary);
+                notificationLayoutBig.setTextColor(R.id.text, secondary);
+                notificationLayoutBig.setTextColor(R.id.text2, secondary);
+                notificationLayoutBig.setImageViewBitmap(R.id.action_prev, prev);
+                notificationLayoutBig.setImageViewBitmap(R.id.action_next, next);
+                notificationLayoutBig.setImageViewBitmap(R.id.action_play_pause, playPause);
+                notificationLayoutBig.setImageViewBitmap(R.id.action_quit, close);
             }
         });
     }

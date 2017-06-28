@@ -1,5 +1,6 @@
 package com.kabouzeid.gramophone.adapter.artist;
 
+import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.support.annotation.LayoutRes;
 import android.support.annotation.NonNull;
@@ -14,16 +15,17 @@ import android.view.ViewGroup;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.Priority;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions;
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
+import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.Target;
+import com.github.florent37.glidepalette.GlidePalette;
 import com.kabouzeid.appthemehelper.util.ColorUtil;
 import com.kabouzeid.appthemehelper.util.MaterialValueHelper;
 import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.adapter.base.AbsMultiSelectAdapter;
 import com.kabouzeid.gramophone.adapter.base.MediaEntryViewHolder;
-import com.kabouzeid.gramophone.glide.PhonographColoredTarget;
 import com.kabouzeid.gramophone.glide.artistimage.ArtistImage;
-import com.kabouzeid.gramophone.glide.palette.BitmapPaletteTranscoder;
-import com.kabouzeid.gramophone.glide.palette.BitmapPaletteWrapper;
 import com.kabouzeid.gramophone.helper.menu.SongsMenuHelper;
 import com.kabouzeid.gramophone.interfaces.CabHolder;
 import com.kabouzeid.gramophone.model.Artist;
@@ -31,10 +33,13 @@ import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.util.ArtistSignatureUtil;
 import com.kabouzeid.gramophone.util.MusicUtil;
 import com.kabouzeid.gramophone.util.NavigationUtil;
+import com.kabouzeid.gramophone.util.PhonographColorUtil;
 import com.simplecityapps.recyclerview_fastscroll.views.FastScrollRecyclerView;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.kabouzeid.gramophone.glide.SongGlideRequest.DEFAULT_DISK_CACHE_STRATEGY;
 
 /**
  * @author Karim Abou Zeid (kabouzeid)
@@ -129,30 +134,41 @@ public class ArtistAdapter extends AbsMultiSelectAdapter<ArtistAdapter.ViewHolde
     protected void loadArtistImage(Artist artist, final ViewHolder holder) {
         if (holder.image == null) return;
         Glide.with(activity)
+//                .asBitmap()
                 .load(new ArtistImage(artist.getName(), false))
-                .asBitmap()
-                .transcode(new BitmapPaletteTranscoder(activity), BitmapPaletteWrapper.class)
-                .diskCacheStrategy(DiskCacheStrategy.SOURCE)
-                .placeholder(R.drawable.default_artist_image)
-                .animate(android.R.anim.fade_in)
-                .priority(Priority.LOW)
-                .signature(ArtistSignatureUtil.getInstance(activity).getArtistSignature(artist.getName()))
-                .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
-                .into(new PhonographColoredTarget(holder.image) {
-                    @Override
-                    public void onLoadCleared(Drawable placeholder) {
-                        super.onLoadCleared(placeholder);
-                        setColors(getDefaultFooterColor(), holder);
-                    }
-
-                    @Override
-                    public void onColorReady(int color) {
-                        if (usePalette)
-                            setColors(color, holder);
-                        else
-                            setColors(getDefaultFooterColor(), holder);
-                    }
-                });
+                .listener(GlidePalette.with(artist.getName())
+                        .use(GlidePalette.Profile.VIBRANT)
+                        .intoCallBack(palette -> {
+                            int std = com.kabouzeid.gramophone.util.ColorUtil.getDefaultFooterColor(holder.image.getContext());
+                            if (usePalette)
+                                setColors(PhonographColorUtil.getColor(palette, Color.TRANSPARENT), holder);
+                            else
+                                setColors(std, holder);
+                        }))
+                .apply(new RequestOptions()
+                    .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
+                    .placeholder(R.drawable.default_artist_image)
+                    .priority(Priority.LOW)
+                    .signature(ArtistSignatureUtil.getInstance(activity).getArtistSignature(artist.getName()))
+                    .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL))
+                .transition(new DrawableTransitionOptions().transition(android.R.anim.fade_in))
+                .into(holder.image);
+//                .transcode(new BitmapPaletteTranscoder(activity), BitmapPaletteWrapper.class)
+//                .into(new PhonographColoredTarget(holder.image) {
+//                    @Override
+//                    public void onLoadCleared(Drawable placeholder) {
+//                        super.onLoadCleared(placeholder);
+//                        setColors(getDefaultFooterColor(), holder);
+//                    }
+//
+//                    @Override
+//                    public void onColorReady(int color) {
+//                        if (usePalette)
+//                            setColors(color, holder);
+//                        else
+//                            setColors(getDefaultFooterColor(), holder);
+//                    }
+//                });
     }
 
     @Override

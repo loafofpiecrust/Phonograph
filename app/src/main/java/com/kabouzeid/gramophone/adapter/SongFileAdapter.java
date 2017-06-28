@@ -13,6 +13,8 @@ import android.view.ViewGroup;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
+import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.signature.MediaStoreSignature;
 import com.kabouzeid.appthemehelper.util.ATHUtil;
 import com.kabouzeid.gramophone.R;
@@ -118,12 +120,21 @@ public class SongFileAdapter extends AbsMultiSelectAdapter<SongFileAdapter.ViewH
             Drawable error = Util.getTintedVectorDrawable(activity, R.drawable.ic_file_music_white_24dp, iconColor);
             Glide.with(activity)
                     .load(new AudioFileCover(file.getPath()))
-                    .diskCacheStrategy(DiskCacheStrategy.NONE)
-                    .error(error)
-                    .placeholder(error)
-                    .animate(android.R.anim.fade_in)
-                    .signature(new MediaStoreSignature("", file.lastModified(), 0))
+                    .apply(new RequestOptions()
+                        .diskCacheStrategy(DiskCacheStrategy.NONE)
+                        .error(error)
+                        .placeholder(error)
+                        .signature(new MediaStoreSignature("", file.lastModified(), 0)))
+                    .transition(new DrawableTransitionOptions().transition(android.R.anim.fade_in))
                     .into(holder.image);
+//            Glide.with(activity)
+//                    .load(new AudioFileCover(file.getPath()))
+//                    .diskCacheStrategy(DiskCacheStrategy.NONE)
+//                    .error(error)
+//                    .placeholder(error)
+//                    .animate(android.R.anim.fade_in)
+//                    .signature(new MediaStoreSignature("", file.lastModified(), 0))
+//                    .into(holder.image);
         }
     }
 

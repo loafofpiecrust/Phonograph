@@ -1,8 +1,11 @@
 package com.kabouzeid.gramophone.glide.artistimage;
 
 import android.content.Context;
+import android.renderscript.ScriptGroup;
 
 import com.bumptech.glide.Priority;
+import com.bumptech.glide.load.DataSource;
+import com.bumptech.glide.load.Options;
 import com.bumptech.glide.load.data.DataFetcher;
 import com.bumptech.glide.load.model.GlideUrl;
 import com.bumptech.glide.load.model.ModelLoader;
@@ -40,31 +43,40 @@ public class ArtistImageFetcher implements DataFetcher<InputStream> {
         this.height = height;
     }
 
-    @Override
     public String getId() {
         // makes sure we never ever return null here
         return String.valueOf(model.artistName);
     }
 
     @Override
-    public InputStream loadData(Priority priority) throws Exception {
+    public void loadData(Priority priority, DataCallback<? super InputStream> callback) {
         if (!MusicUtil.isArtistNameUnknown(model.artistName) && Util.isAllowedToAutoDownload(context)) {
-            Response<LastFmArtist> response = lastFMRestClient.getApiService().getArtistInfo(model.artistName, model.skipOkHttpCache ? "no-cache" : null).execute();
+            Response<LastFmArtist> response = null;
+            try {
+                response = lastFMRestClient.getApiService().getArtistInfo(model.artistName, model.skipOkHttpCache ? "no-cache" : null).execute();
+            } catch (IOException e) {
+                callback.onLoadFailed(e);
+                return;
+            }
 
             if (!response.isSuccessful()) {
-                throw new IOException("Request failed with code: " + response.code());
+                callback.onLoadFailed(new IOException("Request failed with code: " + response.code()));
+                return;
             }
 
             LastFmArtist lastFmArtist = response.body();
 
-            if (isCancelled) return null;
+            if (isCancelled) {
+                callback.onLoadFailed(null);
+                return;
+            }
 
             GlideUrl url = new GlideUrl(LastFMUtil.getLargestArtistImageUrl(lastFmArtist.getArtist().getImage()));
-            urlFetcher = urlLoader.getResourceFetcher(url, width, height);
+            urlFetcher = urlLoader.buildLoadData(url, width, height, new Options()).fetcher;
 
-            return urlFetcher.loadData(priority);
+            urlFetcher.loadData(priority, callback);
         }
-        return null;
+        callback.onLoadFailed(null);
     }
 
     @Override
@@ -80,5 +92,15 @@ public class ArtistImageFetcher implements DataFetcher<InputStream> {
         if (urlFetcher != null) {
             urlFetcher.cancel();
         }
+    }
+
+    @Override
+    public Class<InputStream> getDataClass() {
+        return InputStream.class;
+    }
+
+    @Override
+    public DataSource getDataSource() {
+        return urlFetcher.getDataSource();
     }
 }

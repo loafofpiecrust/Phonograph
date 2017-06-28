@@ -14,15 +14,14 @@ import android.support.v7.app.NotificationCompat;
 import android.support.v7.graphics.Palette;
 import android.text.TextUtils;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.request.animation.GlideAnimation;
 import com.bumptech.glide.request.target.SimpleTarget;
+import com.bumptech.glide.request.transition.Transition;
 import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.glide.SongGlideRequest;
-import com.kabouzeid.gramophone.glide.palette.BitmapPaletteWrapper;
 import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.service.MusicService;
 import com.kabouzeid.gramophone.ui.activities.MainActivity;
+import com.kabouzeid.gramophone.util.PhonographColorUtil;
 import com.kabouzeid.gramophone.util.PreferenceUtil;
 
 import static android.content.Context.NOTIFICATION_SERVICE;
@@ -77,63 +76,57 @@ public class PlayingNotificationImpl24 implements PlayingNotification {
         final PendingIntent deleteIntent = PendingIntent.getService(service, 0, intent, 0);
 
         final int bigNotificationImageSize = service.getResources().getDimensionPixelSize(R.dimen.notification_big_image_size);
-        service.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                SongGlideRequest.Builder.from(Glide.with(service), song)
-                        .checkIgnoreMediaStore(service)
-                        .generatePalette(service).build()
-                        .into(new SimpleTarget<BitmapPaletteWrapper>(bigNotificationImageSize, bigNotificationImageSize) {
-                            @Override
-                            public void onResourceReady(BitmapPaletteWrapper resource, GlideAnimation<? super BitmapPaletteWrapper> glideAnimation) {
-                                Palette palette = resource.getPalette();
-                                update(resource.getBitmap(), palette.getVibrantColor(palette.getMutedColor(Color.TRANSPARENT)));
-                            }
+        service.runOnUiThread(() -> SongGlideRequest.Builder.from(service, song)
+            .asBitmap().build()
+            .into(new SimpleTarget<Bitmap>(bigNotificationImageSize, bigNotificationImageSize) {
+                @Override
+                public void onResourceReady(Bitmap resource, Transition<? super Bitmap> glideAnimation) {
+                    Palette palette = PhonographColorUtil.generatePalette(resource);
+                    update(resource, palette.getVibrantColor(palette.getMutedColor(Color.TRANSPARENT)));
+                }
 
-                            @Override
-                            public void onLoadFailed(Exception e, Drawable errorDrawable) {
-                                update(null, Color.TRANSPARENT);
-                            }
+                @Override
+                public void onLoadFailed(Drawable errorDrawable) {
+                    update(null, Color.TRANSPARENT);
+                }
 
-                            void update(Bitmap bitmap, int color) {
-                                if (bitmap == null)
-                                    bitmap = BitmapFactory.decodeResource(service.getResources(), R.drawable.default_album_art);
-                                NotificationCompat.Action playPauseAction = new NotificationCompat.Action(playButtonResId,
-                                        service.getString(R.string.action_play_pause),
-                                        retrievePlaybackAction(ACTION_TOGGLE_PAUSE));
-                                NotificationCompat.Action previousAction = new NotificationCompat.Action(R.drawable.ic_skip_previous_white_24dp,
-                                        service.getString(R.string.action_previous),
-                                        retrievePlaybackAction(ACTION_REWIND));
-                                NotificationCompat.Action nextAction = new NotificationCompat.Action(R.drawable.ic_skip_next_white_24dp,
-                                        service.getString(R.string.action_next),
-                                        retrievePlaybackAction(ACTION_SKIP));
-                                NotificationCompat.Builder builder = (NotificationCompat.Builder) new NotificationCompat.Builder(service)
-                                        .setSmallIcon(R.drawable.ic_notification)
-                                        .setLargeIcon(bitmap)
-                                        .setContentIntent(clickIntent)
-                                        .setDeleteIntent(deleteIntent)
-                                        .setContentTitle(song.title)
-                                        .setContentText(text)
-                                        .setOngoing(isPlaying)
-                                        .setShowWhen(false)
-                                        .addAction(previousAction)
-                                        .addAction(playPauseAction)
-                                        .addAction(nextAction);
+                void update(Bitmap bitmap, int color) {
+                    if (bitmap == null)
+                        bitmap = BitmapFactory.decodeResource(service.getResources(), R.drawable.default_album_art);
+                    NotificationCompat.Action playPauseAction = new NotificationCompat.Action(playButtonResId,
+                            service.getString(R.string.action_play_pause),
+                            retrievePlaybackAction(ACTION_TOGGLE_PAUSE));
+                    NotificationCompat.Action previousAction = new NotificationCompat.Action(R.drawable.ic_skip_previous_white_24dp,
+                            service.getString(R.string.action_previous),
+                            retrievePlaybackAction(ACTION_REWIND));
+                    NotificationCompat.Action nextAction = new NotificationCompat.Action(R.drawable.ic_skip_next_white_24dp,
+                            service.getString(R.string.action_next),
+                            retrievePlaybackAction(ACTION_SKIP));
+                    NotificationCompat.Builder builder = (NotificationCompat.Builder) new NotificationCompat.Builder(service)
+                            .setSmallIcon(R.drawable.ic_notification)
+                            .setLargeIcon(bitmap)
+                            .setContentIntent(clickIntent)
+                            .setDeleteIntent(deleteIntent)
+                            .setContentTitle(song.title)
+                            .setContentText(text)
+                            .setOngoing(isPlaying)
+                            .setShowWhen(false)
+                            .addAction(previousAction)
+                            .addAction(playPauseAction)
+                            .addAction(nextAction);
 
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                    builder.setStyle(new NotificationCompat.MediaStyle().setMediaSession(service.getMediaSession().getSessionToken()).setShowActionsInCompactView(0, 1, 2))
-                                            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
-                                    if (PreferenceUtil.getInstance(service).coloredNotification())
-                                        builder.setColor(color);
-                                }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        builder.setStyle(new NotificationCompat.MediaStyle().setMediaSession(service.getMediaSession().getSessionToken()).setShowActionsInCompactView(0, 1, 2))
+                                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
+                        if (PreferenceUtil.getInstance(service).coloredNotification())
+                            builder.setColor(color);
+                    }
 
-                                if (stopped)
-                                    return; // notification has been stopped before loading was finished
-                                updateNotifyModeAndPostNotification(builder.build());
-                            }
-                        });
-            }
-        });
+                    if (stopped)
+                        return; // notification has been stopped before loading was finished
+                    updateNotifyModeAndPostNotification(builder.build());
+                }
+            }));
     }
 
     private PendingIntent retrievePlaybackAction(final String action) {
