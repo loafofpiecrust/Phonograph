@@ -28,6 +28,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONStringer;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -54,7 +56,7 @@ public class SyncService extends FirebaseMessagingService {
     private static int msgId = 0;
     public static String channel = "shuttle-sync-party";
     private static long responseTime = 0;
-    private static String deviceId = "";
+    public static String deviceId = "nobody";
 
     public enum Command {
         Play,
@@ -94,9 +96,9 @@ public class SyncService extends FirebaseMessagingService {
         final String url = "https://fcm.googleapis.com/fcm/send";
         final JSONObject data = new JSONObject();
         try {
-            data.put("cmd", cmd.toString());
+            data.put("cmd", cmd.ordinal());
             data.put("args", new JSONArray(args));
-//            data.put("from", deviceId);
+            data.put("sender", deviceId);
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -153,161 +155,180 @@ public class SyncService extends FirebaseMessagingService {
     @Override
     public void onMessageReceived(RemoteMessage msg) {
         Map<String, String> data = msg.getData();
-        String from = data.get("from");
-        if (data == null /*|| from.equals(deviceId)*/) {
+        String sender = data.get("sender");
+        if (data == null || (sender != null && sender.equals(deviceId))) {
             // Only process data messages.
             return;
         }
-        long t = System.currentTimeMillis() - responseTime;
+        long t = msg.getSentTime() - System.currentTimeMillis();
 
         MusicService.getInstance().setSyncedQueue(false);
         if (data.containsKey("cmd")) {
             Command cmd = Command.parse(data.get("cmd"));
-            Log.d(TAG, msg.getFrom() + ": " + cmd + ", took " + t + "ms");
-            if (cmd == Command.QueueAdd) {
-                Log.d(TAG, "Queue add msg");
-                try {
-                    // TODO: Multiple songs, as [{"song": "Name", ...}, {}, ...]
-                    JSONArray args = new JSONArray(data.get("args"));
-                    String title = args.getString(0);
-                    String artist = args.getString(1);
-                    String album = args.getString(2);
-
-                    Song song = SongLoader.getSong(SongLoader.makeSongCursor(
-                        this,
-                        ARTIST + AND + ALBUM + AND + TITLE,
-                        new String[]{artist.toLowerCase(), album.toLowerCase(), title.toLowerCase()}
-                    ));
-
-                    if (song != Song.EMPTY_SONG) {
-                        // Queue the song
-                        if (args.length() > 3) {
-                            int pos = args.getInt(3);
-                            MusicService.getInstance().addSong(pos, song);
-                        } else {
-                            MusicService.getInstance().addSong(song);
-                        }
-                    } else {
-                        // We don't have the song!
-                        // Request to download it.
-                        if (args.length() > 3) {
-                            int pos = args.getInt(3);
-                            sendMessage(this, Command.RequestSong, title, artist, album, pos);
-                        } else {
-                            sendMessage(this, Command.RequestSong, title, artist, album);
-                        }
-                    }
-
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            } else if (cmd == Command.RequestSong) {
-                try {
-                    JSONArray args = new JSONArray(data.get("args"));
-                    String title = args.getString(0);
-                    String artist = args.getString(1);
-                    String album = args.getString(2);
-                    int pos = -1;
-                    if (args.length() > 3) {
-                        pos = args.getInt(3);
-                    }
-
-                    Song song = SongLoader.getSong(SongLoader.makeSongCursor(
-                            this,
-                            ARTIST + AND + ALBUM + AND + TITLE,
-                            new String[]{artist, album, title}
-                    ));
-
-
-                    // Host a TCP server to transfer the file.
-                    ServerSocket server = new ServerSocket(8080);
-
-                    Log.d(TAG, server.getInetAddress().getHostName());
-                    sendMessage(this, Command.TransferSong, title, artist, album, server.getInetAddress().getHostName(), 8080);
-                    server.setSoTimeout(10000);
-                    while (!server.isClosed()) {
-                        final Socket client = server.accept();
-                        if (!client.isConnected()) {
-                            server.close();
-                            break;
-                        }
-                        OutputStream out = client.getOutputStream();
-//                        InputStream in = client.getInputStream();
-                        new Thread(() -> {
-                            File file = new File(MusicUtil.getSongFileUri(song.id).getPath());
-                            try {
-                                out.write((int) file.length());
-                                FileReader reader = new FileReader(file);
-                                while (reader.ready()) {
-                                    out.write(reader.read());
-                                }
-                                out.close();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                        }).start();
-                    }
-
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            } else if (cmd == Command.TransferSong) {
-                try {
-                    JSONArray args = new JSONArray(data.get("args"));
-                    String title = args.getString(0);
-                    String artist = args.getString(1);
-                    String album = args.getString(2);
-                    String ip = args.getString(3);
-                    int port = args.getInt(4);
-
-                    Socket client = new Socket();
-                    client.connect(new InetSocketAddress(ip, port));
-
-                    File file = new File(
-                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
-                        title + " - " + artist + " - " + album
-                    );
-
-                    InputStream in = client.getInputStream();
-//                    OutputStream out = client.getOutputStream();
-                    FileWriter writer = new FileWriter(file);
-                    int size = in.read();
-                    for (int i = 0; i < size; i += 4) {
-                        writer.write(in.read());
-                    }
-                    in.close();
-                    client.close();
-
-
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+            JSONArray args = null;
+            try {
+                args = new JSONArray(data.get("args"));
+            } catch (JSONException e) {
+                e.printStackTrace();
             }
+            Log.d(TAG, msg.getFrom() + ": " + cmd + ", took " + t + "ms");
+            MusicService music = MusicService.getInstance();
+            switch (cmd) {
+                case Play: {
+                    music.play();
+                } break;
+                case Pause: {
+                    music.pause();
+                } break;
+                case Next: {
+                    music.playNextSong(true);
+                } break;
+                case Previous: {
+                    music.playPreviousSong(true);
+                } break;
+                case Seek: try {
+                    int pos = args.getInt(0);
+                    music.seek(pos);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                } break;
+                case QueueSetPos: try {
+                    int pos = args.getInt(0) + music.getPosition();
+                    music.playSongAt(pos);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                } break;
+                case QueueClear: {
+                    music.clearQueue();
+                } break;
+                case QueueAdd: {
+                    Log.d(TAG, "Queue add msg");
+                    try {
+                        // TODO: Multiple songs, as [{"song": "Name", ...}, {}, ...]
+                        String title = args.getString(0);
+                        String artist = args.getString(1);
+                        String album = args.getString(2);
+
+                        Song song = SongLoader.getSong(SongLoader.makeSongCursor(
+                                this,
+                                ARTIST + AND + ALBUM + AND + TITLE,
+                                new String[]{artist.toLowerCase(), album.toLowerCase(), title.toLowerCase()}
+                        ));
+
+                        if (song != Song.EMPTY_SONG) {
+                            // Queue the song
+                            if (args.length() > 3) {
+                                int pos = args.getInt(3) + music.getPosition();
+                                music.addSong(pos, song);
+                            } else {
+                                music.addSong(song);
+                            }
+                        } else {
+                            // We don't have the song!
+                            // Request to download it.
+                            if (args.length() > 3) {
+                                int pos = args.getInt(3);
+                                sendMessage(this, Command.RequestSong, title, artist, album, pos);
+                            } else {
+                                sendMessage(this, Command.RequestSong, title, artist, album);
+                            }
+                        }
+
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                } break;
+                case RequestSong: {
+                    try {
+                        String title = args.getString(0);
+                        String artist = args.getString(1);
+                        String album = args.getString(2);
+                        int pos = -1;
+                        if (args.length() > 3) {
+                            pos = args.getInt(3);
+                        }
+
+                        Song song = SongLoader.getSong(SongLoader.makeSongCursor(
+                                this,
+                                ARTIST + AND + ALBUM + AND + TITLE,
+                                new String[]{artist, album, title}
+                        ));
+
+
+                        // Host a TCP server to transfer the file.
+                        ServerSocket server = new ServerSocket(8080);
+
+                        Log.d(TAG, server.getInetAddress().getHostName());
+                        sendMessage(this, Command.TransferSong, title, artist, album, server.getInetAddress().getHostName(), 8080);
+                        server.setSoTimeout(10000);
+                        while (!server.isClosed()) {
+                            final Socket client = server.accept();
+                            if (!client.isConnected()) {
+                                server.close();
+                                break;
+                            }
+                            OutputStream out = new BufferedOutputStream(client.getOutputStream());
+//                        InputStream in = client.getInputStream();
+                            new Thread(() -> {
+                                File file = new File(MusicUtil.getSongFileUri(song.id).getPath());
+                                try {
+                                    out.write((int) file.length());
+                                    FileReader reader = new FileReader(file);
+                                    while (reader.ready()) {
+                                        out.write(reader.read());
+                                    }
+                                    out.close();
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            }).start();
+                        }
+
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                } break;
+                case TransferSong: {
+                    try {
+                        String title = args.getString(0);
+                        String artist = args.getString(1);
+                        String album = args.getString(2);
+                        String ip = args.getString(3);
+                        int port = args.getInt(4);
+
+                        Socket client = new Socket();
+                        client.connect(new InetSocketAddress(ip, port));
+
+                        File file = new File(
+                                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+                                title + " - " + artist + " - " + album
+                        );
+
+                        InputStream in = new BufferedInputStream(client.getInputStream());
+//                    OutputStream out = client.getOutputStream();
+                        FileWriter writer = new FileWriter(file);
+                        int size = in.read();
+                        for (int i = 0; i < size; i += 4) {
+                            writer.write(in.read());
+                        }
+                        in.close();
+                        client.close();
+
+
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                } break;
+            }
+
         }
         MusicService.getInstance().setSyncedQueue(true);
 
         // TODO: Use the notification bit for when users join or leave the connection.
-    }
-
-    public class TokenService extends FirebaseInstanceIdService {
-        public TokenService() {
-            super();
-        }
-
-        @Override
-        public void onTokenRefresh() {
-            // Get updated InstanceID token.
-            String refreshedToken = FirebaseInstanceId.getInstance().getToken();
-            Log.d(TAG, "Refreshed token: " + refreshedToken);
-
-            // If you want to send messages to this application instance or
-            // manage this apps subscriptions on the server side, send the
-            // Instance ID token to your app server.
-            deviceId = refreshedToken;
-        }
     }
 }

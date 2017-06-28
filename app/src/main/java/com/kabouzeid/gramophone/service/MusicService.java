@@ -62,6 +62,8 @@ import com.kabouzeid.gramophone.util.MusicUtil;
 import com.kabouzeid.gramophone.util.PreferenceUtil;
 import com.kabouzeid.gramophone.util.Util;
 
+import org.json.JSONArray;
+
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -764,11 +766,13 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
     public void addSong(int position, Song song) {
         if (canSync()) {
+            JSONArray songs = new JSONArray();
+            songs.put(song.title);
+            songs.put(song.artistName);
+            songs.put(song.albumName);
             SyncService.sendMessage(this, SyncService.Command.QueueAdd,
-                    song.title,
-                    song.artistName,
-                    song.albumName,
-                    position
+                    songs,
+                    position - getPosition()
             );
         }
         playingQueue.add(position, song);
@@ -778,11 +782,11 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
     public void addSong(Song song) {
         if (canSync()) {
-            SyncService.sendMessage(this, SyncService.Command.QueueAdd,
-                    song.title,
-                    song.artistName,
-                    song.albumName
-            );
+            JSONArray songs = new JSONArray();
+            songs.put(song.title);
+            songs.put(song.artistName);
+            songs.put(song.albumName);
+            SyncService.sendMessage(this, SyncService.Command.QueueAdd, songs);
         }
         playingQueue.add(song);
         originalPlayingQueue.add(song);
@@ -790,18 +794,40 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public void addSongs(int position, List<Song> songs) {
+        if (canSync()) {
+            JSONArray arr = new JSONArray();
+            for (Song song : songs) {
+                arr.put(song.title);
+                arr.put(song.artistName);
+                arr.put(song.albumName);
+            }
+            SyncService.sendMessage(this, SyncService.Command.QueueAdd, arr, position - getPosition());
+        }
         playingQueue.addAll(position, songs);
         originalPlayingQueue.addAll(position, songs);
         notifyChange(QUEUE_CHANGED);
     }
 
     public void addSongs(List<Song> songs) {
+        if (canSync()) {
+            JSONArray arr = new JSONArray();
+            for (Song song : songs) {
+                arr.put(song.title);
+                arr.put(song.artistName);
+                arr.put(song.albumName);
+            }
+            SyncService.sendMessage(this, SyncService.Command.QueueAdd, arr);
+        }
         playingQueue.addAll(songs);
         originalPlayingQueue.addAll(songs);
         notifyChange(QUEUE_CHANGED);
     }
 
     public void removeSong(int position) {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.QueueRemove, position - getPosition());
+        }
+
         if (getShuffleMode() == SHUFFLE_MODE_NONE) {
             playingQueue.remove(position);
             originalPlayingQueue.remove(position);
@@ -867,6 +893,10 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public void clearQueue() {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.QueueClear);
+        }
+
         playingQueue.clear();
         originalPlayingQueue.clear();
 
@@ -875,12 +905,18 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public void playSongAt(final int position) {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.QueueSetPos, position - getPosition());
+        }
         // handle this on the handlers thread to avoid blocking the ui thread
         playerHandler.removeMessages(PLAY_SONG);
         playerHandler.obtainMessage(PLAY_SONG, position, 0).sendToTarget();
     }
 
     public void setPosition(final int position) {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.QueueSetPos, position - getPosition());
+        }
         // handle this on the handlers thread to avoid blocking the ui thread
         playerHandler.removeMessages(SET_POSITION);
         playerHandler.obtainMessage(SET_POSITION, position, 0).sendToTarget();
