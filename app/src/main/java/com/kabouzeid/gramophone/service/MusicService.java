@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.ContentObserver;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Point;
 import android.graphics.drawable.Drawable;
@@ -26,6 +27,7 @@ import android.os.Message;
 import android.os.PowerManager;
 import android.os.Process;
 import android.preference.PreferenceManager;
+import android.provider.ContactsContract;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -60,6 +62,7 @@ import com.kabouzeid.gramophone.service.notification.PlayingNotificationImpl24;
 import com.kabouzeid.gramophone.service.playback.Playback;
 import com.kabouzeid.gramophone.util.MusicUtil;
 import com.kabouzeid.gramophone.util.PreferenceUtil;
+import com.kabouzeid.gramophone.util.ProfileUtil;
 import com.kabouzeid.gramophone.util.Util;
 
 import org.json.JSONArray;
@@ -176,15 +179,15 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
     private Handler uiThreadHandler;
 
-    private boolean syncedQueue = true;
+    private boolean syncedQueue = false;
 
     private static MusicService instance = null;
     public static MusicService getInstance() {
         return instance;
     }
 
-    public void setSyncedQueue(boolean val) {
-        syncedQueue = val;
+    public void setSyncedQueue(boolean on) {
+        syncedQueue = on;
     }
 
     public boolean canSync() {
@@ -195,14 +198,48 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
         return MusicUtil.getSongFileUri(song.id).toString();
     }
 
+    public void setSyncMode(boolean on) {
+        // For now, use the channel model from IRC
+        String channel = PreferenceUtil.getInstance(this).getSyncChannel();
+        if (!channel.isEmpty()) {
+            channel = channel.trim().toLowerCase().replaceAll("[ \t\n]+", "-");
+
+            Cursor c = getApplicationContext().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
+            c.moveToFirst();
+            int idx = c.getColumnIndex(ContactsContract.Profile.DISPLAY_NAME_ALTERNATIVE);
+            String name = "Somebody";
+            if (idx != -1) {
+                name = c.getString(idx);
+                int sep = name.indexOf(',');
+                if (sep == -1) {
+                    sep = name.indexOf('@');
+                    if (sep != -1) {
+                        name = name.substring(0, sep);
+                    }
+                } else {
+                    name = name.substring(sep + 1).trim();
+                }
+            }
+            c.close();
+
+            if (on) {
+                FirebaseMessaging.getInstance().subscribeToTopic(channel);
+                SyncService.sendMessage(this, SyncService.Command.UserJoined, name);
+            } else {
+                FirebaseMessaging.getInstance().unsubscribeFromTopic(channel);
+                SyncService.sendMessage(this, SyncService.Command.UserLeft, name);
+            }
+            setSyncedQueue(on);
+        } else {
+            // TODO: Issue toast message saying "Set sync channel in settings first"
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
 
         instance = this;
-
-        // For now, use the channel model from IRC
-        FirebaseMessaging.getInstance().subscribeToTopic(SyncService.channel);
 
         final PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getClass().getName());
@@ -372,7 +409,7 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     public void onDestroy() {
 
         // For now, use the channel model from IRC
-        FirebaseMessaging.getInstance().unsubscribeFromTopic(SyncService.channel);
+        setSyncMode(false);
 
         unregisterReceiver(widgetIntentReceiver);
         if (becomingNoisyReceiverRegistered) {
@@ -869,10 +906,16 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public void moveSong(int from, int to) {
+        // Clamp our values within the range of possible values.
+        int end = playingQueue.size() - 1;
+        from = Math.min(Math.max(from, 0), end);
+        to = Math.min(Math.max(to, 0), end);
+
         if (from == to) return;
 
         if (canSync()) {
-            SyncService.sendMessage(this, SyncService.Command.QueueMove, from, to);
+            int pos = getPosition();
+            SyncService.sendMessage(this, SyncService.Command.QueueMove, from - pos, to - pos);
         }
 
         final int currentPosition = getPosition();
@@ -944,7 +987,10 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     public void play() {
         if (canSync()) {
             SyncService.sendMessage(this, SyncService.Command.Play);
+        } else {
+            setSyncMode(true);
         }
+
         synchronized (this) {
             if (requestFocus()) {
                 if (!playback.isPlaying()) {

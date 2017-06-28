@@ -22,6 +22,7 @@ import com.google.firebase.messaging.RemoteMessage;
 import com.kabouzeid.gramophone.loader.SongLoader;
 import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.util.MusicUtil;
+import com.kabouzeid.gramophone.util.PreferenceUtil;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -54,7 +55,6 @@ import static com.kabouzeid.gramophone.helper.SearchQueryHelper.TITLE;
 public class SyncService extends FirebaseMessagingService {
     public static final String TAG = SyncService.class.getSimpleName();
     private static int msgId = 0;
-    public static String channel = "shuttle-sync-party";
     private static long responseTime = 0;
     public static String deviceId = "nobody";
 
@@ -74,7 +74,9 @@ public class SyncService extends FirebaseMessagingService {
         QueueClear,
         QueueRequest,
         TransferSong,
-        RequestSong;
+        RequestSong,
+        UserJoined,
+        UserLeft;
 
         public static Command parse(String s) {
             return Command.values()[Integer.parseInt(s)];
@@ -92,7 +94,7 @@ public class SyncService extends FirebaseMessagingService {
 
     public static void sendMessage(final Context ctx, final Command cmd, Object... args) {
         Log.d(TAG, "sync: sending message out!");
-        final String instanceIdToken = "/topics/" + channel;
+        final String instanceIdToken = "/topics/" + PreferenceUtil.getInstance(ctx).getSyncChannel();
         final String url = "https://fcm.googleapis.com/fcm/send";
         final JSONObject data = new JSONObject();
         try {
@@ -174,6 +176,24 @@ public class SyncService extends FirebaseMessagingService {
             Log.d(TAG, msg.getFrom() + ": " + cmd + ", took " + t + "ms");
             MusicService music = MusicService.getInstance();
             switch (cmd) {
+                case UserJoined: {
+                    try {
+                        String name = args.getString(0);
+                        music.runOnUiThread(() ->
+                                Toast.makeText(music, name + " joined", Toast.LENGTH_SHORT).show());
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                } break;
+                case UserLeft: {
+                    try {
+                        String name = args.getString(0);
+                        music.runOnUiThread(() ->
+                                Toast.makeText(music, name + " left", Toast.LENGTH_SHORT).show());
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                } break;
                 case Play: {
                     music.play();
                 } break;
@@ -200,6 +220,13 @@ public class SyncService extends FirebaseMessagingService {
                 } break;
                 case QueueClear: {
                     music.clearQueue();
+                } break;
+                case QueueMove: try {
+                    int from = args.getInt(0) + music.getPosition();
+                    int to = args.getInt(1) + music.getPosition();
+                    music.moveSong(from, to);
+                } catch (JSONException e) {
+                    e.printStackTrace();
                 } break;
                 case QueueAdd: {
                     Log.d(TAG, "Queue add msg");
@@ -251,7 +278,7 @@ public class SyncService extends FirebaseMessagingService {
                         Song song = SongLoader.getSong(SongLoader.makeSongCursor(
                                 this,
                                 ARTIST + AND + ALBUM + AND + TITLE,
-                                new String[]{artist, album, title}
+                                new String[]{artist.toLowerCase(), album.toLowerCase(), title.toLowerCase()}
                         ));
 
 

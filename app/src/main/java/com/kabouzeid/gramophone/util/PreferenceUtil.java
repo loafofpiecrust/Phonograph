@@ -69,6 +69,8 @@ public final class PreferenceUtil {
 
     public static final String START_DIRECTORY = "start_directory";
 
+    public static final String SYNC_CHANNEL = "sync_channel";
+
     private static PreferenceUtil sInstance;
 
     private final SharedPreferences mPreferences;
@@ -399,5 +401,13 @@ public final class PreferenceUtil {
         final SharedPreferences.Editor editor = mPreferences.edit();
         editor.putString(START_DIRECTORY, file.getPath());
         editor.apply();
+    }
+
+    public String getSyncChannel() {
+        return mPreferences.getString(SYNC_CHANNEL, "");
+    }
+
+    public void setSyncChannel(String channel) {
+        mPreferences.edit().putString(SYNC_CHANNEL, channel).apply();
     }
 }

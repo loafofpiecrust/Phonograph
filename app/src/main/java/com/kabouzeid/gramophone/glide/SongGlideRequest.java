@@ -25,7 +25,7 @@ import com.kabouzeid.gramophone.util.PreferenceUtil;
  */
 public class SongGlideRequest {
 
-    public static final DiskCacheStrategy DEFAULT_DISK_CACHE_STRATEGY = DiskCacheStrategy.NONE;
+    public static final DiskCacheStrategy DEFAULT_DISK_CACHE_STRATEGY = DiskCacheStrategy.SOURCE;
     public static final int DEFAULT_ERROR_IMAGE = R.drawable.default_album_art;
     public static final int DEFAULT_ANIMATION = android.R.anim.fade_in;
 
