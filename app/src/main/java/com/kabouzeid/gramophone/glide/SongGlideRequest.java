@@ -2,10 +2,13 @@ package com.kabouzeid.gramophone.glide;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.support.annotation.NonNull;
 
+import com.bumptech.glide.GenericTransitionOptions;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.Priority;
 import com.bumptech.glide.RequestBuilder;
 import com.bumptech.glide.RequestManager;
 import com.bumptech.glide.load.Key;
@@ -13,8 +16,6 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.bumptech.glide.request.RequestOptions;
-import com.bumptech.glide.request.target.SimpleTarget;
-import com.bumptech.glide.request.transition.Transition;
 import com.bumptech.glide.signature.MediaStoreSignature;
 import com.github.florent37.glidepalette.BitmapPalette;
 import com.github.florent37.glidepalette.GlidePalette;
@@ -22,15 +23,13 @@ import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.glide.audiocover.AudioFileCover;
 import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.util.MusicUtil;
-import com.kabouzeid.gramophone.util.PhonographColorUtil;
 import com.kabouzeid.gramophone.util.PreferenceUtil;
 
 /**
  * @author Karim Abou Zeid (kabouzeid)
  */
 public class SongGlideRequest {
-
-    public static final DiskCacheStrategy DEFAULT_DISK_CACHE_STRATEGY = DiskCacheStrategy.DATA;
+    public static final DiskCacheStrategy DEFAULT_DISK_CACHE_STRATEGY = DiskCacheStrategy.RESOURCE;
     public static final int DEFAULT_ERROR_IMAGE = R.drawable.default_album_art;
     public static final int DEFAULT_ANIMATION = android.R.anim.fade_in;
 
@@ -75,9 +74,11 @@ public class SongGlideRequest {
                     .apply(new RequestOptions()
                         .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
                         .error(DEFAULT_ERROR_IMAGE)
+                        .placeholder(DEFAULT_ERROR_IMAGE)
                         .fitCenter()
+                            .priority(Priority.NORMAL)
                         .signature(createSignature(song)))
-                    .transition(new DrawableTransitionOptions().crossFade());
+                    .transition(new DrawableTransitionOptions().crossFade(250));
         }
     }
 
@@ -95,20 +96,11 @@ public class SongGlideRequest {
                     .apply(new RequestOptions()
                         .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
                         .error(DEFAULT_ERROR_IMAGE)
+                        .placeholder(DEFAULT_ERROR_IMAGE)
+                        .fitCenter()
 //                        .animate(DEFAULT_ANIMATION)
                         .signature(createSignature(builder.song)))
-                    .transition(new BitmapTransitionOptions().crossFade());
-        }
-
-        public RequestBuilder<Bitmap> buildWithPalette(BitmapPalette.CallBack cb) {
-            RequestBuilder<Bitmap> req = this.build();
-            req.into(new SimpleTarget<Bitmap>() {
-                @Override
-                public void onResourceReady(Bitmap resource, Transition<? super Bitmap> transition) {
-                    cb.onPaletteLoaded(PhonographColorUtil.generatePalette(resource));
-                }
-            });
-            return req;
+                    .transition(new BitmapTransitionOptions().crossFade(250));
         }
     }
 
@@ -140,12 +132,13 @@ public class SongGlideRequest {
                     .listener(GlidePalette.with(getSongResource(builder.song, builder.ignoreMediaStore).toString())
                             .use(GlidePalette.Profile.VIBRANT)
                             .intoCallBack(cb)
-                            .crossfade(true))
+                            .crossfade(true, 250))
                     .apply(new RequestOptions()
                             .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
                             .error(DEFAULT_ERROR_IMAGE)
+                            .placeholder(DEFAULT_ERROR_IMAGE)
                             .signature(createSignature(builder.song)))
-                    .transition(new DrawableTransitionOptions().crossFade());
+                    .transition(new DrawableTransitionOptions().crossFade(250));
         }
     }
 

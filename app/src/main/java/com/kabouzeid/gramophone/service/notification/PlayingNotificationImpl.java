@@ -25,6 +25,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.SimpleTarget;
 import com.bumptech.glide.request.target.Target;
 import com.bumptech.glide.request.transition.Transition;
+import com.github.florent37.glidepalette.GlidePalette;
 import com.kabouzeid.appthemehelper.util.ColorUtil;
 import com.kabouzeid.appthemehelper.util.MaterialValueHelper;
 import com.kabouzeid.gramophone.R;
@@ -101,6 +102,19 @@ public class PlayingNotificationImpl implements PlayingNotification {
                     Glide.with(service).clear(target);
                 }
 
+                SongGlideRequest.Builder.from(service, song)
+                        .generatePalette(service)
+                        .build(palette -> {
+                            int color = PhonographColorUtil.getColor(palette, Color.TRANSPARENT);
+
+                            if (!PreferenceUtil.getInstance(service).coloredNotification()) {
+                                color = Color.TRANSPARENT;
+                            }
+                            setBackgroundColor(color);
+                            setNotificationContent(color == Color.TRANSPARENT ? Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP : ColorUtil.isColorLight(color));
+                        })
+                        .preload();
+
                 target = SongGlideRequest.Builder.from(service, song)
                         .asBitmap().build()
                         .into(new SimpleTarget<Bitmap>(bigNotificationImageSize, bigNotificationImageSize) {
@@ -119,16 +133,6 @@ public class PlayingNotificationImpl implements PlayingNotification {
                                 if (bitmap != null) {
                                     notificationLayout.setImageViewBitmap(R.id.image, bitmap);
                                     notificationLayoutBig.setImageViewBitmap(R.id.image, bitmap);
-
-                                    Palette palette = PhonographColorUtil.generatePalette(bitmap);
-                                    int color = PhonographColorUtil.getColor(palette, Color.TRANSPARENT);
-
-                                    if (!PreferenceUtil.getInstance(service).coloredNotification()) {
-                                        color = Color.TRANSPARENT;
-                                    }
-                                    setBackgroundColor(color);
-                                    setNotificationContent(color == Color.TRANSPARENT ? Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP : ColorUtil.isColorLight(color));
-
                                 } else {
                                     notificationLayout.setImageViewResource(R.id.image, R.drawable.default_album_art);
                                     notificationLayoutBig.setImageViewResource(R.id.image, R.drawable.default_album_art);

@@ -687,7 +687,7 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
                         @Override
                         public void onResourceReady(Bitmap resource, Transition<? super Bitmap> glideAnimation) {
-                            metaData.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, copy(resource));
+                            metaData.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, resource);
                             mediaSession.setMetadata(metaData.build());
                         }
                     });

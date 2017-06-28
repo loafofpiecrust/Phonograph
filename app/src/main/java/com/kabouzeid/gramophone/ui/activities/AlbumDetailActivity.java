@@ -156,7 +156,8 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
                     setColors(PhonographColorUtil.getColor(palette, Color.BLACK));
                     supportStartPostponedEnterTransition();
                 })
-                .apply(RequestOptions.fitCenterTransform())
+                .apply(new RequestOptions()
+                        .fitCenter())
                 .transition(new DrawableTransitionOptions().dontTransition())
                 .into(albumArtImageView);
 //                .into(new SimpleTarget<Drawable>() {

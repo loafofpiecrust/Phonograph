@@ -141,14 +141,14 @@ public class ArtistAdapter extends AbsMultiSelectAdapter<ArtistAdapter.ViewHolde
                         .intoCallBack(palette -> {
                             int std = com.kabouzeid.gramophone.util.ColorUtil.getDefaultFooterColor(holder.image.getContext());
                             if (usePalette)
-                                setColors(PhonographColorUtil.getColor(palette, Color.TRANSPARENT), holder);
+                                setColors(PhonographColorUtil.getColor(palette, std), holder);
                             else
                                 setColors(std, holder);
                         }))
                 .apply(new RequestOptions()
                     .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
                     .placeholder(R.drawable.default_artist_image)
-                    .priority(Priority.LOW)
+                    .priority(Priority.NORMAL)
                     .signature(ArtistSignatureUtil.getInstance(activity).getArtistSignature(artist.getName()))
                     .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL))
                 .transition(new DrawableTransitionOptions().transition(android.R.anim.fade_in))
