@@ -55,7 +55,7 @@ public class NavigationUtil {
                 effects.putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId);
                 effects.putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC);
                 activity.startActivityForResult(effects, 0);
-            } catch (@NonNull final ActivityNotFoundException notFound) {
+            } catch (final ActivityNotFoundException notFound) {
                 Toast.makeText(activity, activity.getResources().getString(R.string.no_equalizer), Toast.LENGTH_SHORT).show();
             }
         }

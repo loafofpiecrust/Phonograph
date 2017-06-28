@@ -15,10 +15,10 @@ import java.util.ArrayList;
  * @author Karim Abou Zeid (kabouzeid)
  */
 public class SearchQueryHelper {
-    private static final String TITLE_SELECTION = "lower(" + MediaStore.Audio.AudioColumns.TITLE + ") = ?";
-    private static final String ALBUM_SELECTION = "lower(" + MediaStore.Audio.AudioColumns.ALBUM + ") = ?";
-    private static final String ARTIST_SELECTION = "lower(" + MediaStore.Audio.AudioColumns.ARTIST + ") = ?";
-    private static final String AND = " AND ";
+    public static final String TITLE = "lower(" + MediaStore.Audio.AudioColumns.TITLE + ") = ?";
+    public static final String ALBUM = "lower(" + MediaStore.Audio.AudioColumns.ALBUM + ") = ?";
+    public static final String ARTIST = "lower(" + MediaStore.Audio.AudioColumns.ARTIST + ") = ?";
+    public static final String AND = " AND ";
 
     @NonNull
     public static ArrayList<Song> getSongs(@NonNull final Context context, @NonNull final Bundle extras) {
@@ -30,59 +30,59 @@ public class SearchQueryHelper {
         ArrayList<Song> songs = new ArrayList<>();
 
         if (artistName != null && albumName != null && titleName != null) {
-            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ARTIST_SELECTION + AND + ALBUM_SELECTION + AND + TITLE_SELECTION, new String[]{artistName.toLowerCase(), albumName.toLowerCase(), titleName.toLowerCase()}));
+            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ARTIST + AND + ALBUM + AND + TITLE, new String[]{artistName.toLowerCase(), albumName.toLowerCase(), titleName.toLowerCase()}));
         }
         if (!songs.isEmpty()) {
             return songs;
         }
 
         if (artistName != null && titleName != null) {
-            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ARTIST_SELECTION + AND + TITLE_SELECTION, new String[]{artistName.toLowerCase(), titleName.toLowerCase()}));
+            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ARTIST + AND + TITLE, new String[]{artistName.toLowerCase(), titleName.toLowerCase()}));
         }
         if (!songs.isEmpty()) {
             return songs;
         }
 
         if (albumName != null && titleName != null) {
-            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ALBUM_SELECTION + AND + TITLE_SELECTION, new String[]{albumName.toLowerCase(), titleName.toLowerCase()}));
+            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ALBUM + AND + TITLE, new String[]{albumName.toLowerCase(), titleName.toLowerCase()}));
         }
         if (!songs.isEmpty()) {
             return songs;
         }
 
         if (artistName != null) {
-            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ARTIST_SELECTION, new String[]{artistName.toLowerCase()}));
+            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ARTIST, new String[]{artistName.toLowerCase()}));
         }
         if (!songs.isEmpty()) {
             return songs;
         }
 
         if (albumName != null) {
-            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ALBUM_SELECTION, new String[]{albumName.toLowerCase()}));
+            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ALBUM, new String[]{albumName.toLowerCase()}));
         }
         if (!songs.isEmpty()) {
             return songs;
         }
 
         if (titleName != null) {
-            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, TITLE_SELECTION, new String[]{titleName.toLowerCase()}));
+            songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, TITLE, new String[]{titleName.toLowerCase()}));
         }
         if (!songs.isEmpty()) {
             return songs;
         }
 
 
-        songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ARTIST_SELECTION, new String[]{query.toLowerCase()}));
+        songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ARTIST, new String[]{query.toLowerCase()}));
         if (!songs.isEmpty()) {
             return songs;
         }
 
-        songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ALBUM_SELECTION, new String[]{query.toLowerCase()}));
+        songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, ALBUM, new String[]{query.toLowerCase()}));
         if (!songs.isEmpty()) {
             return songs;
         }
 
-        songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, TITLE_SELECTION, new String[]{query.toLowerCase()}));
+        songs = SongLoader.getSongs(SongLoader.makeSongCursor(context, TITLE, new String[]{query.toLowerCase()}));
         if (!songs.isEmpty()) {
             return songs;
         }

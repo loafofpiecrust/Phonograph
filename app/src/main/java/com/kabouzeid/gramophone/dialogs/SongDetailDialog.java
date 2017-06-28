@@ -99,7 +99,7 @@ public class SongDetailDialog extends DialogFragment {
                     samplingRate.setText(makeTextWithTitle(context, R.string.label_sampling_rate, audioHeader.getSampleRate() + " Hz"));
                 }
             }
-        } catch (@NonNull CannotReadException | IOException | TagException | ReadOnlyFileException | InvalidAudioFrameException e) {
+        } catch (CannotReadException | IOException | TagException | ReadOnlyFileException | InvalidAudioFrameException e) {
             Log.e(TAG, "error while reading the song file", e);
         }
         return dialog;

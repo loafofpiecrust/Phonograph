@@ -62,7 +62,7 @@ public class MusicUtil {
             values.put(MediaStore.Audio.AudioColumns.IS_RINGTONE, "1");
             values.put(MediaStore.Audio.AudioColumns.IS_ALARM, "1");
             resolver.update(uri, values, null, null);
-        } catch (@NonNull final UnsupportedOperationException ignored) {
+        } catch (final UnsupportedOperationException ignored) {
             return;
         }
 
@@ -199,7 +199,7 @@ public class MusicUtil {
                             Log.e("MusicUtils", "Failed to delete file " + name);
                         }
                         cursor.moveToNext();
-                    } catch (@NonNull final SecurityException ex) {
+                    } catch (final SecurityException ex) {
                         cursor.moveToNext();
                     } catch (NullPointerException e) {
                         Log.e("MusicUtils", "Failed to find file " + name);

@@ -1,6 +1,8 @@
 package com.kabouzeid.gramophone;
 
 import android.app.Application;
+import android.content.Context;
+import android.net.ConnectivityManager;
 import android.os.Build;
 
 import com.crashlytics.android.Crashlytics;

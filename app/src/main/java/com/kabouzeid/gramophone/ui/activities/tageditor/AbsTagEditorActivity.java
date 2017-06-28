@@ -337,7 +337,7 @@ public abstract class AbsTagEditorActivity extends AbsBaseActivity {
                         }
 
                         audioFile.commit();
-                    } catch (@NonNull CannotReadException | IOException | CannotWriteException | TagException | ReadOnlyFileException | InvalidAudioFrameException e) {
+                    } catch (CannotReadException | IOException | CannotWriteException | TagException | ReadOnlyFileException | InvalidAudioFrameException e) {
                         e.printStackTrace();
                     }
                 }

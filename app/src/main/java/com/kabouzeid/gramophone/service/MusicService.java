@@ -38,6 +38,7 @@ import com.bumptech.glide.BitmapRequestBuilder;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.animation.GlideAnimation;
 import com.bumptech.glide.request.target.SimpleTarget;
+import com.google.firebase.messaging.FirebaseMessaging;
 import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.appwidgets.AppWidgetBig;
 import com.kabouzeid.gramophone.appwidgets.AppWidgetClassic;
@@ -63,7 +64,9 @@ import com.kabouzeid.gramophone.util.Util;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 /**
@@ -171,6 +174,21 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
     private Handler uiThreadHandler;
 
+    private boolean syncedQueue = true;
+
+    private static MusicService instance = null;
+    public static MusicService getInstance() {
+        return instance;
+    }
+
+    public void setSyncedQueue(boolean val) {
+        syncedQueue = val;
+    }
+
+    public boolean canSync() {
+        return syncedQueue && Util.isOnline(this);
+    }
+
     private static String getTrackUri(@NonNull Song song) {
         return MusicUtil.getSongFileUri(song.id).toString();
     }
@@ -178,6 +196,11 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     @Override
     public void onCreate() {
         super.onCreate();
+
+        instance = this;
+
+        // For now, use the channel model from IRC
+        FirebaseMessaging.getInstance().subscribeToTopic(SyncService.channel);
 
         final PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getClass().getName());
@@ -345,6 +368,10 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
     @Override
     public void onDestroy() {
+
+        // For now, use the channel model from IRC
+        FirebaseMessaging.getInstance().unsubscribeFromTopic(SyncService.channel);
+
         unregisterReceiver(widgetIntentReceiver);
         if (becomingNoisyReceiverRegistered) {
             unregisterReceiver(becomingNoisyReceiver);
@@ -499,6 +526,9 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public void playNextSong(boolean force) {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.Next);
+        }
         playSongAt(getNextPosition(force));
     }
 
@@ -733,12 +763,27 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public void addSong(int position, Song song) {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.QueueAdd,
+                    song.title,
+                    song.artistName,
+                    song.albumName,
+                    position
+            );
+        }
         playingQueue.add(position, song);
         originalPlayingQueue.add(position, song);
         notifyChange(QUEUE_CHANGED);
     }
 
     public void addSong(Song song) {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.QueueAdd,
+                    song.title,
+                    song.artistName,
+                    song.albumName
+            );
+        }
         playingQueue.add(song);
         originalPlayingQueue.add(song);
         notifyChange(QUEUE_CHANGED);
@@ -799,6 +844,11 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
 
     public void moveSong(int from, int to) {
         if (from == to) return;
+
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.QueueMove, from, to);
+        }
+
         final int currentPosition = getPosition();
         Song songToMove = playingQueue.remove(from);
         playingQueue.add(to, songToMove);
@@ -845,6 +895,9 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public void pause() {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.Pause);
+        }
         pausedByTransientLossOfFocus = false;
         if (playback.isPlaying()) {
             playback.pause();
@@ -853,6 +906,9 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public void play() {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.Play);
+        }
         synchronized (this) {
             if (requestFocus()) {
                 if (!playback.isPlaying()) {
@@ -900,6 +956,9 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public void playPreviousSong(boolean force) {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.Previous);
+        }
         playSongAt(getPreviousPosition(force));
     }
 

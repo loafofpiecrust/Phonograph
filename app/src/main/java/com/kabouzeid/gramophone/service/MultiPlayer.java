@@ -122,7 +122,7 @@ public class MultiPlayer implements Playback, MediaPlayer.OnErrorListener, Media
             if (setDataSourceImpl(mNextMediaPlayer, path)) {
                 try {
                     mCurrentMediaPlayer.setNextMediaPlayer(mNextMediaPlayer);
-                } catch (@NonNull IllegalArgumentException | IllegalStateException e) {
+                } catch (IllegalArgumentException | IllegalStateException e) {
                     Log.e(TAG, "setNextDataSource: setNextMediaPlayer()", e);
                     if (mNextMediaPlayer != null) {
                         mNextMediaPlayer.release();
@@ -281,7 +281,7 @@ public class MultiPlayer implements Playback, MediaPlayer.OnErrorListener, Media
         try {
             mCurrentMediaPlayer.setAudioSessionId(sessionId);
             return true;
-        } catch (@NonNull IllegalArgumentException | IllegalStateException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return false;
         }
     }
