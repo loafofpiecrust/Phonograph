@@ -10,7 +10,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.ContentObserver;
-import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Point;
 import android.graphics.drawable.Drawable;
@@ -27,19 +26,24 @@ import android.os.Message;
 import android.os.PowerManager;
 import android.os.Process;
 import android.preference.PreferenceManager;
-import android.provider.ContactsContract;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
+import android.util.Log;
 import android.widget.Toast;
 
 import com.bumptech.glide.RequestBuilder;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.SimpleTarget;
 import com.bumptech.glide.request.transition.Transition;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.api.client.extensions.android.http.AndroidHttp;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.appwidgets.AppWidgetBig;
@@ -63,14 +67,13 @@ import com.kabouzeid.gramophone.service.playback.Playback;
 import com.kabouzeid.gramophone.util.MusicUtil;
 import com.kabouzeid.gramophone.util.PreferenceUtil;
 import com.kabouzeid.gramophone.util.Util;
+import com.turn.ttorrent.tracker.Tracker;
 
 import org.json.JSONArray;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 
 /**
@@ -179,6 +182,26 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     private Handler uiThreadHandler;
 
     private boolean syncedQueue = false;
+    private List<String> syncedUsers = new ArrayList<>();
+
+    public GoogleSignInAccount googleAccount;
+
+    private Tracker tracker;
+
+
+    /** Global instance of the HTTP transport. */
+    private static HttpTransport HTTP_TRANSPORT = AndroidHttp.newCompatibleTransport();
+    /** Global instance of the JSON factory. */
+    private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
+
+
+    public void addSyncedUser(String id) {
+        syncedUsers.add(id);
+    }
+
+    public List<String> getSyncedUsers() {
+        return syncedUsers;
+    }
 
     private static MusicService instance = null;
     public static MusicService getInstance() {
@@ -194,39 +217,100 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     private static String getTrackUri(@NonNull Song song) {
-        return MusicUtil.getSongFileUri(song.id).toString();
+        // Allow playing songs not registered in the MediaStore (yet).
+        // Those songs are still crippled otherwise, but can play.
+        if (song.id != -1) {
+            return MusicUtil.getSongFileUri(song.id).toString();
+        } else {
+            return song.data;
+        }
     }
 
     public void setSyncMode(boolean on) {
         // For now, use the channel model from IRC
         String channel = PreferenceUtil.getInstance(this).getSyncChannel();
         if (!channel.isEmpty()) {
-            channel = channel.trim().toLowerCase().replaceAll("[ \t\n]+", "-");
+            Log.d(SyncService.TAG, "channel = '" + channel + "'");
 
-            Cursor c = getApplicationContext().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
-            c.moveToFirst();
-            int idx = c.getColumnIndex(ContactsContract.Profile.DISPLAY_NAME_ALTERNATIVE);
-            String name = "Somebody";
-            if (idx != -1) {
-                name = c.getString(idx);
-                int sep = name.indexOf(',');
-                if (sep == -1) {
-                    sep = name.indexOf('@');
-                    if (sep != -1) {
-                        name = name.substring(0, sep);
-                    }
-                } else {
-                    name = name.substring(sep + 1).trim();
-                }
-            }
-            c.close();
+//            Cursor c = getApplicationContext().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
+//            c.moveToFirst();
+//            int idx = c.getColumnIndex(ContactsContract.Profile.DISPLAY_NAME_ALTERNATIVE);
+//            String name = "Somebody";
+//            if (idx != -1 && idx < c.getColumnCount()) {
+//                name = c.getString(idx);
+//                int sep = name.indexOf(',');
+//                if (sep == -1) {
+//                    sep = name.indexOf('@');
+//                    if (sep != -1) {
+//                        name = name.substring(0, sep);
+//                    }
+//                } else {
+//                    name = name.substring(sep + 1).trim();
+//                }
+//            }
+//            c.close();
 
             if (on) {
-                FirebaseMessaging.getInstance().subscribeToTopic(channel);
-                SyncService.sendMessage(this, SyncService.Command.UserJoined, name);
+                if (!syncedQueue) {
+                    FirebaseMessaging.getInstance().subscribeToTopic(channel);
+                    SyncService.sendMessage(this, SyncService.Command.UserJoined, "Somebody");
+
+
+//                    GoogleAccountCredential credential =
+//                            GoogleAccountCredential.usingOAuth2(
+//                                    this,
+//                                    Collections.singleton("https://www.googleapis.com/auth/drive")
+//                            );
+//                    credential.setSelectedAccount(googleAccount.getAccount());
+//                    Drive drive = new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, credential)
+//                            .setApplicationName("Phonograph")
+//                            .build();
+//
+//                    try {
+//                        java.io.File data = new java.io.File(getCurrentSong().data);
+//                        File metadata = new File();
+//                        metadata.setName(data.getName());
+//                        // TODO: Grab the MIME automatically.
+//                        FileContent contents = new FileContent("audio/mpeg3", data);
+//                        Drive.Files.Create upload = drive.files().create(metadata, contents);
+//                        MediaHttpUploader uploader = upload.getMediaHttpUploader();
+//                        uploader.setDirectUploadEnabled(false);
+//                        uploader.setChunkSize(MediaHttpUploader.DEFAULT_CHUNK_SIZE / 10);
+//                        uploader.setProgressListener(uploader1 -> {
+//                            switch (uploader1.getUploadState()) {
+//                                case INITIATION_STARTED:
+//                                    Log.d(TAG, "Upload Initiation has started at " + System.currentTimeMillis());
+//                                    break;
+//                                case INITIATION_COMPLETE:
+//                                    Log.d(TAG, "Upload Initiation is Complete.");
+//                                    break;
+//                                case MEDIA_IN_PROGRESS:
+//                                    double percent = uploader1.getProgress() * 100;
+//                                    Log.d(TAG, "Upload progress: " + percent + " at " + System.currentTimeMillis());
+//                                    break;
+//                                case MEDIA_COMPLETE:
+//                                    Log.d(TAG, "Upload is Complete! " + System.currentTimeMillis());
+//                                    break;
+//                            }
+//                        });
+//                        new Thread(() -> {
+//                            try {
+//                                upload.execute();
+//                            } catch (IOException e) {
+//                                e.printStackTrace();
+//                            }
+//                        }).start();
+//                    } catch (java.io.IOException e) {
+//                        e.printStackTrace();
+//                    }
+
+                    Log.d(TAG, "song path = " + getCurrentSong().data);
+
+                }
             } else {
                 FirebaseMessaging.getInstance().unsubscribeFromTopic(channel);
-                SyncService.sendMessage(this, SyncService.Command.UserLeft, name);
+                SyncService.sendMessage(this, SyncService.Command.UserLeft, "Somebody");
+//                tracker.stop();
             }
             setSyncedQueue(on);
         } else {
@@ -237,6 +321,8 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     @Override
     public void onCreate() {
         super.onCreate();
+
+        // Google login
 
         instance = this;
 
@@ -1095,6 +1181,9 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
     }
 
     public int seek(int millis) {
+        if (canSync()) {
+            SyncService.sendMessage(this, SyncService.Command.Seek, millis);
+        }
         synchronized (this) {
             try {
                 int newPosition = playback.seek(millis);
@@ -1140,6 +1229,7 @@ public class MusicService extends Service implements SharedPreferences.OnSharedP
             case SHUFFLE_MODE_SHUFFLE:
                 this.shuffleMode = shuffleMode;
                 ShuffleHelper.makeShuffleList(this.getPlayingQueue(), getPosition());
+                SyncService.sendMessage(this, SyncService.Command.QueueUpdate, new JSONArray(playingQueue.subList(getPosition(), playingQueue.size())));
                 position = 0;
                 break;
             case SHUFFLE_MODE_NONE:

@@ -1,11 +1,8 @@
 package com.kabouzeid.gramophone.preferences;
 
 import android.content.Context;
-import android.util.AttributeSet;
-
-import com.afollestad.materialdialogs.prefs.MaterialEditTextPreference;
-import com.kabouzeid.appthemehelper.common.prefs.supportv7.ATEEditTextPreference;
 import android.support.v7.preference.EditTextPreference;
+import android.util.AttributeSet;
 
 /**
  * Created by snead on 6/28/17.

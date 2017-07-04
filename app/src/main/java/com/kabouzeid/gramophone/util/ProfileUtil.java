@@ -1,25 +1,16 @@
 package com.kabouzeid.gramophone.util;
 
-import android.accounts.Account;
-import android.accounts.AccountManager;
-import android.annotation.TargetApi;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.provider.ContactsContract;
-import android.telephony.TelephonyManager;
-import android.util.Patterns;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-
-import static android.content.Context.TELEPHONY_SERVICE;
 
 /**
- * A collection of authentication and account connection utilities. With strong inspiration from the Google IO session
+ * A collection of authentication and googleAccount connection utilities. With strong inspiration from the Google IO session
  * app.
  * @author Dandré Allison
  */

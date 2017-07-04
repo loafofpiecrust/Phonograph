@@ -2,7 +2,6 @@ package com.kabouzeid.gramophone.adapter;
 
 import android.content.SharedPreferences;
 import android.graphics.Color;
-import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
@@ -13,15 +12,10 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.GlideContext;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.bumptech.glide.request.RequestOptions;
-import com.bumptech.glide.request.target.Target;
 import com.github.florent37.glidepalette.GlidePalette;
 import com.kabouzeid.gramophone.R;
-import com.kabouzeid.gramophone.glide.PhonographColoredTarget;
-import com.kabouzeid.gramophone.glide.SongGlideRequest;
 import com.kabouzeid.gramophone.misc.CustomFragmentStatePagerAdapter;
 import com.kabouzeid.gramophone.model.Song;
 import com.kabouzeid.gramophone.util.MusicUtil;
@@ -36,6 +30,7 @@ import butterknife.Unbinder;
 
 import static com.kabouzeid.gramophone.glide.SongGlideRequest.DEFAULT_DISK_CACHE_STRATEGY;
 import static com.kabouzeid.gramophone.glide.SongGlideRequest.DEFAULT_ERROR_IMAGE;
+import static com.kabouzeid.gramophone.glide.SongGlideRequest.DEFAULT_PALETTE_PROFILE;
 import static com.kabouzeid.gramophone.glide.SongGlideRequest.createSignature;
 
 /**
@@ -147,7 +142,7 @@ public class AlbumCoverPagerAdapter extends CustomFragmentStatePagerAdapter {
             Glide.with(this)
                     .load(uri)
                     .listener(GlidePalette.with(uri.toString())
-                            .use(GlidePalette.Profile.VIBRANT)
+                            .use(DEFAULT_PALETTE_PROFILE)
                             .intoCallBack(palette -> {
                                 setColor(PhonographColorUtil.getColor(palette, Color.BLACK));
                             }))

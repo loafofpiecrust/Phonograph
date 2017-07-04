@@ -10,16 +10,27 @@ import android.os.Bundle;
 import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.DialogFragment;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.preference.ListPreference;
 import android.support.v7.preference.Preference;
 import android.support.v7.preference.PreferenceManager;
 import android.support.v7.preference.TwoStatePreference;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 
 import com.afollestad.materialdialogs.color.ColorChooserDialog;
+import com.google.android.gms.auth.api.Auth;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.auth.api.signin.GoogleSignInResult;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.Scope;
+import com.google.android.gms.drive.Drive;
 import com.kabouzeid.appthemehelper.ThemeStore;
 import com.kabouzeid.appthemehelper.common.prefs.supportv7.ATEColorPreference;
 import com.kabouzeid.appthemehelper.common.prefs.supportv7.ATEPreferenceFragmentCompat;
@@ -37,11 +48,21 @@ import com.kabouzeid.gramophone.util.PreferenceUtil;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
-public class SettingsActivity extends AbsBaseActivity implements ColorChooserDialog.ColorCallback {
+public class SettingsActivity extends AbsBaseActivity implements
+        ColorChooserDialog.ColorCallback,
+        GoogleApiClient.OnConnectionFailedListener
+{
     public static final String TAG = SettingsActivity.class.getSimpleName();
 
     @BindView(R.id.toolbar)
     Toolbar toolbar;
+
+    private static final int REQUEST_EXTERNAL_STORAGE = 1;
+    private static String[] PERMISSIONS_STORAGE = {
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
+
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -59,11 +80,64 @@ public class SettingsActivity extends AbsBaseActivity implements ColorChooserDia
         //noinspection ConstantConditions
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
+        // Google login
+        GoogleSignInOptions opt = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestScopes(
+                        Drive.SCOPE_FILE,
+                        Drive.SCOPE_APPFOLDER,
+                        new Scope("https://www.googleapis.com/auth/drive"))
+                .build();
+
+        GoogleApiClient mGoogle = new GoogleApiClient.Builder(this)
+                .enableAutoManage(this, this)
+                .addApi(Auth.GOOGLE_SIGN_IN_API, opt)
+                .addApi(Drive.API)
+                .addScope(new Scope("https://www.googleapis.com/auth/drive"))
+                .build();
+
         if (savedInstanceState == null) {
             getSupportFragmentManager().beginTransaction().replace(R.id.content_frame, new SettingsFragment()).commit();
         } else {
             SettingsFragment frag = (SettingsFragment) getSupportFragmentManager().findFragmentById(R.id.content_frame);
             if (frag != null) frag.invalidateSettings();
+
+        }
+
+        Intent signIn = Auth.GoogleSignInApi.getSignInIntent(mGoogle);
+        startActivityForResult(signIn, 666);
+
+
+        int permission = ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        if (permission != PackageManager.PERMISSION_GRANTED) {
+            // We don't have permission so prompt the user
+            ActivityCompat.requestPermissions(
+                    this,
+                    PERMISSIONS_STORAGE,
+                    REQUEST_EXTERNAL_STORAGE
+            );
+        }
+
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == 666) {
+            GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
+
+            Log.d(TAG, "handleSignInResult:" + result.isSuccess());
+            if (result.isSuccess()) {
+                // Signed in successfully, show authenticated UI.
+                GoogleSignInAccount acct = result.getSignInAccount();
+                Log.d(TAG, "display_name: " + acct.getDisplayName());
+                MusicService.getInstance().googleAccount = acct;
+//                updateUI(true);
+            } else {
+                // Signed out, show unauthenticated UI.
+//                updateUI(false);
+            }
         }
     }
 
@@ -100,6 +174,11 @@ public class SettingsActivity extends AbsBaseActivity implements ColorChooserDia
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+
     }
 
     public static class SettingsFragment extends ATEPreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {

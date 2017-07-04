@@ -1,7 +1,5 @@
 package com.kabouzeid.gramophone.adapter.album;
 
-import android.graphics.Color;
-import android.graphics.drawable.Drawable;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
@@ -9,12 +7,10 @@ import android.support.v7.widget.CardView;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.bumptech.glide.Glide;
 import com.kabouzeid.appthemehelper.util.ATHUtil;
 import com.kabouzeid.appthemehelper.util.ColorUtil;
 import com.kabouzeid.appthemehelper.util.MaterialValueHelper;
 import com.kabouzeid.gramophone.R;
-import com.kabouzeid.gramophone.glide.PhonographColoredTarget;
 import com.kabouzeid.gramophone.glide.SongGlideRequest;
 import com.kabouzeid.gramophone.helper.HorizontalAdapterHelper;
 import com.kabouzeid.gramophone.interfaces.CabHolder;
@@ -59,6 +55,7 @@ public class HorizontalAlbumAdapter extends AlbumAdapter {
         if (holder.image == null) return;
 
         SongGlideRequest.Builder.from(activity, album.safeGetFirstSong())
+                .withPlaceholder()
                 .generatePalette(activity)
                 .build(palette -> {
                     int std = ATHUtil.resolveColor(holder.image.getContext(), R.attr.cardBackgroundColor);

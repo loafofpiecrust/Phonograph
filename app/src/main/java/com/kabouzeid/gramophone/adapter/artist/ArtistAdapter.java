@@ -1,7 +1,5 @@
 package com.kabouzeid.gramophone.adapter.artist;
 
-import android.graphics.Color;
-import android.graphics.drawable.Drawable;
 import android.support.annotation.LayoutRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -14,8 +12,6 @@ import android.view.ViewGroup;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.Priority;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.Target;
@@ -40,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.kabouzeid.gramophone.glide.SongGlideRequest.DEFAULT_DISK_CACHE_STRATEGY;
+import static com.kabouzeid.gramophone.glide.SongGlideRequest.DEFAULT_PALETTE_PROFILE;
 
 /**
  * @author Karim Abou Zeid (kabouzeid)
@@ -137,7 +134,7 @@ public class ArtistAdapter extends AbsMultiSelectAdapter<ArtistAdapter.ViewHolde
 //                .asBitmap()
                 .load(new ArtistImage(artist.getName(), false))
                 .listener(GlidePalette.with(artist.getName())
-                        .use(GlidePalette.Profile.VIBRANT)
+                        .use(DEFAULT_PALETTE_PROFILE)
                         .intoCallBack(palette -> {
                             int std = com.kabouzeid.gramophone.util.ColorUtil.getDefaultFooterColor(holder.image.getContext());
                             if (usePalette)

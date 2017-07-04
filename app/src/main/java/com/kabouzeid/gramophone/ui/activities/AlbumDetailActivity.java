@@ -2,9 +2,7 @@ package com.kabouzeid.gramophone.ui.activities;
 
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -17,26 +15,20 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.afollestad.materialcab.MaterialCab;
 import com.afollestad.materialdialogs.util.DialogUtils;
-import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
-import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.RequestOptions;
-import com.bumptech.glide.request.target.SimpleTarget;
-import com.bumptech.glide.request.target.Target;
-import com.bumptech.glide.request.transition.Transition;
 import com.github.ksoichiro.android.observablescrollview.ObservableRecyclerView;
 import com.kabouzeid.appthemehelper.util.ColorUtil;
 import com.kabouzeid.appthemehelper.util.MaterialValueHelper;
 import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.adapter.song.AlbumSongAdapter;
 import com.kabouzeid.gramophone.dialogs.SleepTimerDialog;
-import com.kabouzeid.gramophone.glide.PhonographColoredTarget;
 import com.kabouzeid.gramophone.glide.SongGlideRequest;
-import com.kabouzeid.gramophone.glide.palette.BitmapPaletteWrapper;
 import com.kabouzeid.gramophone.helper.MusicPlayerRemote;
 import com.kabouzeid.gramophone.interfaces.CabHolder;
 import com.kabouzeid.gramophone.interfaces.LoaderIds;
@@ -45,12 +37,15 @@ import com.kabouzeid.gramophone.loader.AlbumLoader;
 import com.kabouzeid.gramophone.misc.SimpleObservableScrollViewCallbacks;
 import com.kabouzeid.gramophone.misc.WrappedAsyncTaskLoader;
 import com.kabouzeid.gramophone.model.Album;
+import com.kabouzeid.gramophone.service.SyncService;
 import com.kabouzeid.gramophone.ui.activities.base.AbsSlidingMusicPanelActivity;
 import com.kabouzeid.gramophone.ui.activities.tageditor.AbsTagEditorActivity;
 import com.kabouzeid.gramophone.ui.activities.tageditor.AlbumTagEditorActivity;
 import com.kabouzeid.gramophone.util.NavigationUtil;
 import com.kabouzeid.gramophone.util.PhonographColorUtil;
 import com.kabouzeid.gramophone.util.Util;
+
+import org.json.JSONException;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -74,8 +69,12 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
     ImageView albumArtImageView;
     @BindView(R.id.toolbar)
     Toolbar toolbar;
+    @BindView(R.id.title_header)
+    LinearLayout titleHeader;
     @BindView(R.id.title)
-    TextView albumTitleView;
+    TextView albumTitle;
+    @BindView(R.id.title2)
+    TextView albumSubtitle;
     @BindView(R.id.list_background)
     View songsBackgroundView;
 
@@ -86,7 +85,7 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
     private int titleViewHeight;
     private int albumArtViewHeight;
     private int toolbarColor;
-    private float toolbarAlpha;
+    private float toolbarAlpha = 0.0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,6 +103,13 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        SyncService.removeReceiver(this);
+    }
+
+    @Override
     protected View createContentView() {
         return wrapSlidingMusicPanel(R.layout.activity_album_detail);
     }
@@ -111,26 +117,27 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
     private final SimpleObservableScrollViewCallbacks observableScrollViewCallbacks = new SimpleObservableScrollViewCallbacks() {
         @Override
         public void onScrollChanged(int scrollY, boolean b, boolean b2) {
-            scrollY += albumArtViewHeight + titleViewHeight;
-            float flexibleRange = albumArtViewHeight - headerOffset;
+        scrollY += albumArtViewHeight + titleViewHeight;
+        float flexibleRange = albumArtViewHeight - headerOffset;
 
-            // Translate album cover
-            albumArtImageView.setTranslationY(Math.max(-albumArtViewHeight, -scrollY / 2));
+        // Translate album cover
+        albumArtImageView.setTranslationY(Math.max(-albumArtViewHeight, -scrollY / 2));
 
-            // Translate list background
-            songsBackgroundView.setTranslationY(Math.max(0, -scrollY + albumArtViewHeight));
+        // Translate list background
+        songsBackgroundView.setTranslationY(Math.max(0, -scrollY + albumArtViewHeight));
 
-            // Change alpha of overlay
-            toolbarAlpha = Math.max(0, Math.min(1, (float) scrollY / flexibleRange));
-            toolbar.setBackgroundColor(ColorUtil.withAlpha(toolbarColor, toolbarAlpha));
-            setStatusbarColor(ColorUtil.withAlpha(toolbarColor, cab != null && cab.isActive() ? 1 : toolbarAlpha));
+        // Change alpha of overlay
+        toolbarAlpha = Math.max(0.01f, Math.min(1, (float) scrollY / flexibleRange));
+//            toolbarAlpha = 0.0f;
+        toolbar.setBackgroundColor(ColorUtil.withAlpha(toolbarColor, 0.0f));
+        setStatusbarColor(ColorUtil.withAlpha(toolbarColor, cab != null && cab.isActive() ? 1 : toolbarAlpha));
 
-            // Translate name text
-            int maxTitleTranslationY = albumArtViewHeight;
-            int titleTranslationY = maxTitleTranslationY - scrollY;
-            titleTranslationY = Math.max(headerOffset, titleTranslationY);
+        // Translate name text
+        int maxTitleTranslationY = albumArtViewHeight;
+        int titleTranslationY = maxTitleTranslationY - scrollY;
+        titleTranslationY = Math.max(headerOffset, titleTranslationY);
 
-            albumTitleView.setTranslationY(titleTranslationY);
+        titleHeader.setTranslationY(titleTranslationY);
         }
     };
 
@@ -138,8 +145,10 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
         albumArtViewHeight = getResources().getDimensionPixelSize(R.dimen.header_image_height);
         toolbarColor = DialogUtils.resolveColor(this, R.attr.defaultFooterColor);
         int toolbarHeight = Util.getActionBarSize(this);
-        titleViewHeight = getResources().getDimensionPixelSize(R.dimen.title_view_height);
-        headerOffset = toolbarHeight;
+        titleViewHeight = getResources().getDimensionPixelSize(R.dimen.title_view_height)
+                + getResources().getDimensionPixelSize(R.dimen.subtitle_view_height);
+//        headerOffset = toolbarHeight;
+        headerOffset = 0;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             headerOffset += getResources().getDimensionPixelSize(R.dimen.status_bar_padding);
         }
@@ -157,6 +166,8 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
                     supportStartPostponedEnterTransition();
                 })
                 .apply(new RequestOptions()
+                        .placeholder(null)
+                        .fallback(null)
                         .fitCenter())
                 .transition(new DrawableTransitionOptions().dontTransition())
                 .into(albumArtImageView);
@@ -175,8 +186,9 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
 
     private void setColors(int color) {
         toolbarColor = color;
-        albumTitleView.setBackgroundColor(color);
-        albumTitleView.setTextColor(MaterialValueHelper.getPrimaryTextColor(this, ColorUtil.isColorLight(color)));
+        titleHeader.setBackgroundColor(color);
+        albumTitle.setTextColor(MaterialValueHelper.getPrimaryTextColor(this, ColorUtil.isColorLight(color)));
+        albumSubtitle.setTextColor(MaterialValueHelper.getPrimaryTextColor(this, ColorUtil.isColorLight(color)));
 
         setNavigationbarColor(color);
         setTaskDescriptionColor(color);
@@ -191,15 +203,12 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
         setUpRecyclerViewPadding();
         recyclerView.setScrollViewCallbacks(observableScrollViewCallbacks);
         final View contentView = getWindow().getDecorView().findViewById(android.R.id.content);
-        contentView.post(new Runnable() {
-            @Override
-            public void run() {
-                songsBackgroundView.getLayoutParams().height = contentView.getHeight();
-                observableScrollViewCallbacks.onScrollChanged(-(albumArtViewHeight + titleViewHeight), false, false);
-                // necessary to fix a bug
-                recyclerView.scrollBy(0, 1);
-                recyclerView.scrollBy(0, -1);
-            }
+        contentView.post(() -> {
+            songsBackgroundView.getLayoutParams().height = contentView.getHeight();
+            observableScrollViewCallbacks.onScrollChanged(-(albumArtViewHeight + titleViewHeight), false, false);
+            // necessary to fix a bug
+            recyclerView.scrollBy(0, 1);
+            recyclerView.scrollBy(0, -1);
         });
     }
 
@@ -321,13 +330,15 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
     @Override
     public void setStatusbarColor(int color) {
         super.setStatusbarColor(color);
-        setLightStatusbar(false);
+        setLightStatusbar(ColorUtil.isColorLight(color));
     }
 
     private void setAlbum(Album album) {
         this.album = album;
         loadAlbumCover();
-        albumTitleView.setText(album.getTitle());
+        albumTitle.setText(album.getTitle());
+        albumSubtitle.setText(album.getArtistName()
+                + (album.getYear() > 0 ? " - " + album.getYear() : ""));
         adapter.swapDataSet(album.songs);
     }
 
@@ -345,6 +356,26 @@ public class AlbumDetailActivity extends AbsSlidingMusicPanelActivity implements
     public void onLoadFinished(Loader<Album> loader, Album data) {
         supportStartPostponedEnterTransition();
         setAlbum(data);
+
+        // Check other users' status for this album
+        SyncService.sendMessage(this, SyncService.Command.AlbumCheck, data.getTitle());
+        SyncService.addReceiver(this, (cmd, args) -> {
+            if (cmd == SyncService.Command.AlbumStatus) {
+                try {
+                    boolean hasIt = args.getBoolean(0);
+                    albumSubtitle.append(" | ");
+                    if (hasIt) {
+                        // Increase has and res count both by 1
+                        albumSubtitle.append("1");
+                    } else {
+                        // Increase just res count by 1a
+                        albumSubtitle.append("0");
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
     }
 
     @Override

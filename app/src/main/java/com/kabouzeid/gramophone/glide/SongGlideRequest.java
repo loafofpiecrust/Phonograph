@@ -2,11 +2,9 @@ package com.kabouzeid.gramophone.glide;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.support.annotation.NonNull;
 
-import com.bumptech.glide.GenericTransitionOptions;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.Priority;
 import com.bumptech.glide.RequestBuilder;
@@ -17,7 +15,6 @@ import com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.signature.MediaStoreSignature;
-import com.github.florent37.glidepalette.BitmapPalette;
 import com.github.florent37.glidepalette.GlidePalette;
 import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.glide.audiocover.AudioFileCover;
@@ -32,11 +29,13 @@ public class SongGlideRequest {
     public static final DiskCacheStrategy DEFAULT_DISK_CACHE_STRATEGY = DiskCacheStrategy.RESOURCE;
     public static final int DEFAULT_ERROR_IMAGE = R.drawable.default_album_art;
     public static final int DEFAULT_ANIMATION = android.R.anim.fade_in;
+    public static final int DEFAULT_PALETTE_PROFILE = GlidePalette.Profile.VIBRANT;
 
     public static class Builder {
         final RequestManager requestManager;
         final Song song;
         boolean ignoreMediaStore;
+        boolean withFallback = false;
 
         public static Builder from(@NonNull Context ctx, Song song) {
             return new Builder(Glide.with(ctx), song).checkIgnoreMediaStore(ctx);
@@ -68,15 +67,26 @@ public class SongGlideRequest {
             return this;
         }
 
+        public Builder withPlaceholder() {
+            return withPlaceholder(true);
+        }
+        public Builder withPlaceholder(boolean val) {
+            this.withFallback = val;
+            return this;
+        }
+
         public RequestBuilder<Drawable> build() {
             //noinspection unchecked
+            RequestOptions opt = new RequestOptions();
+            if (withFallback) {
+                opt = opt.fallback(DEFAULT_ERROR_IMAGE);
+            }
             return createBaseRequest(requestManager, song, ignoreMediaStore)
-                    .apply(new RequestOptions()
+                    .apply(opt
                         .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
                         .error(DEFAULT_ERROR_IMAGE)
-                        .placeholder(DEFAULT_ERROR_IMAGE)
                         .fitCenter()
-                            .priority(Priority.NORMAL)
+                        .priority(Priority.NORMAL)
                         .signature(createSignature(song)))
                     .transition(new DrawableTransitionOptions().crossFade(250));
         }
@@ -91,12 +101,15 @@ public class SongGlideRequest {
 
         public RequestBuilder<Bitmap> build() {
             //noinspection unchecked
+            RequestOptions opt = new RequestOptions();
+            if (builder.withFallback) {
+                opt = opt.placeholder(DEFAULT_ERROR_IMAGE);
+            }
             return createBitmapRequest(builder.requestManager, builder.song, builder.ignoreMediaStore)
 //                    .asBitmap()
-                    .apply(new RequestOptions()
+                    .apply(opt
                         .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
                         .error(DEFAULT_ERROR_IMAGE)
-                        .placeholder(DEFAULT_ERROR_IMAGE)
                         .fitCenter()
 //                        .animate(DEFAULT_ANIMATION)
                         .signature(createSignature(builder.song)))
@@ -128,15 +141,18 @@ public class SongGlideRequest {
 //        }
 
         public RequestBuilder<Drawable> build(GlidePalette.CallBack cb) {
+            RequestOptions opt = new RequestOptions();
+            if (builder.withFallback) {
+                opt = opt.placeholder(DEFAULT_ERROR_IMAGE);
+            }
             return createBaseRequest(builder.requestManager, builder.song, builder.ignoreMediaStore)
                     .listener(GlidePalette.with(getSongResource(builder.song, builder.ignoreMediaStore).toString())
-                            .use(GlidePalette.Profile.VIBRANT)
+                            .use(DEFAULT_PALETTE_PROFILE)
                             .intoCallBack(cb)
                             .crossfade(true, 250))
-                    .apply(new RequestOptions()
+                    .apply(opt
                             .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
                             .error(DEFAULT_ERROR_IMAGE)
-                            .placeholder(DEFAULT_ERROR_IMAGE)
                             .signature(createSignature(builder.song)))
                     .transition(new DrawableTransitionOptions().crossFade(250));
         }

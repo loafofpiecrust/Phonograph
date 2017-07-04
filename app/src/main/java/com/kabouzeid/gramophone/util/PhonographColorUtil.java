@@ -7,7 +7,6 @@ import android.support.v7.graphics.Palette;
 
 import com.kabouzeid.appthemehelper.util.ColorUtil;
 
-import java.util.Collections;
 import java.util.Comparator;
 
 /**
@@ -24,20 +23,25 @@ public class PhonographColorUtil {
     @ColorInt
     public static int getColor(@Nullable Palette palette, int fallback) {
         if (palette != null) {
-            if (palette.getVibrantSwatch() != null) {
-                return palette.getVibrantSwatch().getRgb();
-            } else if (palette.getMutedSwatch() != null) {
-                return palette.getMutedSwatch().getRgb();
-            } else if (palette.getDarkVibrantSwatch() != null) {
-                return palette.getDarkVibrantSwatch().getRgb();
-            } else if (palette.getDarkMutedSwatch() != null) {
-                return palette.getDarkMutedSwatch().getRgb();
-            } else if (palette.getLightVibrantSwatch() != null) {
-                return palette.getLightVibrantSwatch().getRgb();
-            } else if (palette.getLightMutedSwatch() != null) {
-                return palette.getLightMutedSwatch().getRgb();
-            } else if (!palette.getSwatches().isEmpty()) {
-                return Collections.max(palette.getSwatches(), SwatchComparator.getInstance()).getRgb();
+            if (!palette.getSwatches().isEmpty()) {
+                Palette.Swatch res = palette.getVibrantSwatch();
+                if (res == null || ColorUtil.isColorLight(res.getRgb())) {
+                    res = palette.getDarkVibrantSwatch();
+                }
+                if (res == null || ColorUtil.isColorLight(res.getRgb())) {
+                    for (Palette.Swatch swatch : palette.getSwatches()) {
+                        int rgb = swatch.getRgb();
+                        if (!ColorUtil.isColorLight(rgb) && (res == null || swatch.getPopulation() > res.getPopulation())) {
+                            res = swatch;
+                        }
+                    }
+                }
+                if (res == null) {
+                    return fallback;
+                } else {
+                    return res.getRgb();
+                }
+//                return Collections.max(palette.getSwatches(), SwatchComparator.getInstance()).getRgb();
             }
         }
         return fallback;

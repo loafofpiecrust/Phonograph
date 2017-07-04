@@ -1,51 +1,52 @@
 package com.kabouzeid.gramophone.service;
 
-import android.app.Activity;
 import android.content.Context;
-import android.icu.util.Output;
-import android.net.Uri;
-import android.os.Environment;
+import android.util.Base64;
 import android.util.Log;
 import android.widget.Toast;
 
 import com.android.volley.AuthFailureError;
 import com.android.volley.Request;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
-import com.google.firebase.iid.FirebaseInstanceId;
-import com.google.firebase.iid.FirebaseInstanceIdService;
-import com.google.firebase.messaging.FirebaseMessaging;
+import com.annimon.stream.Collectors;
+import com.annimon.stream.Stream;
+import com.annimon.stream.function.BiConsumer;
+import com.annimon.stream.function.Consumer;
+import com.annimon.stream.function.DoubleConsumer;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 import com.kabouzeid.gramophone.loader.SongLoader;
 import com.kabouzeid.gramophone.model.Song;
-import com.kabouzeid.gramophone.util.MusicUtil;
 import com.kabouzeid.gramophone.util.PreferenceUtil;
+import com.kabouzeid.gramophone.util.Util;
+import com.turn.ttorrent.client.Client;
+import com.turn.ttorrent.client.SharedTorrent;
+import com.turn.ttorrent.client.strategy.RequestStrategyImplSequential;
+import com.turn.ttorrent.common.Torrent;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.json.JSONStringer;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketAddress;
-import java.util.Arrays;
+import java.io.InputStreamReader;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.URI;
+import java.net.URL;
+import java.nio.channels.FileChannel;
+import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.kabouzeid.gramophone.helper.SearchQueryHelper.ALBUM;
 import static com.kabouzeid.gramophone.helper.SearchQueryHelper.AND;
@@ -54,9 +55,28 @@ import static com.kabouzeid.gramophone.helper.SearchQueryHelper.TITLE;
 
 public class SyncService extends FirebaseMessagingService {
     public static final String TAG = SyncService.class.getSimpleName();
-    private static int msgId = 0;
-    private static long responseTime = 0;
-    public static String deviceId = "nobody";
+    private static String deviceId = UUID.randomUUID().toString();
+    private static Map<Object, BiConsumer<Command, JSONArray>> msgReceivers = new HashMap<>();
+    private static List<User> otherUsers = new ArrayList<>();
+
+    public class User {
+        String deviceId;
+        String displayName;
+
+        User(String device, String name) {
+            this.deviceId = device;
+            this.displayName = name;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof User)) {
+                return false;
+            }
+            User user = (User) other;
+            return user.deviceId.equals(deviceId);
+        }
+    }
 
     public enum Command {
         Play,
@@ -76,7 +96,13 @@ public class SyncService extends FirebaseMessagingService {
         TransferSong,
         RequestSong,
         UserJoined,
-        UserLeft;
+        UserLeft,
+        QueueUpdate,
+        AlbumCheck,
+        ArtistCheck,
+        AlbumStatus,
+        ArtistStatus,
+        Ping;
 
         public static Command parse(String s) {
             return Command.values()[Integer.parseInt(s)];
@@ -92,9 +118,17 @@ public class SyncService extends FirebaseMessagingService {
         super.onCreate();
     }
 
-    public static void sendMessage(final Context ctx, final Command cmd, Object... args) {
+    public static void sendMessage(Context ctx, Command cmd, Object... args) {
+        sendMessage(ctx, "/topics/" + PreferenceUtil.getInstance(ctx).getSyncChannel(), cmd, args);
+    }
+
+    public static void sendMessage(final Context ctx, final String dest, final Command cmd, Object... args) {
+        // TODO: Queue the message to send out when we are back online?
+        if (!Util.isOnline(ctx)) {
+            return;
+        }
+
         Log.d(TAG, "sync: sending message out!");
-        final String instanceIdToken = "/topics/" + PreferenceUtil.getInstance(ctx).getSyncChannel();
         final String url = "https://fcm.googleapis.com/fcm/send";
         final JSONObject data = new JSONObject();
         try {
@@ -105,34 +139,27 @@ public class SyncService extends FirebaseMessagingService {
             e.printStackTrace();
         }
         StringRequest myReq = new StringRequest(Request.Method.POST,url,
-                new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        Toast.makeText(ctx, "Bingo Success", Toast.LENGTH_SHORT).show();
-                        Log.d(TAG, "sync: msg success");
-                    }
+                response -> {
+//                    Toast.makeText(ctx, "Bingo Success", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "sync: msg success");
                 },
-                new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        String msg = error.getMessage();
-                        error.printStackTrace();
-                        Toast.makeText(ctx, "Oops error", Toast.LENGTH_SHORT).show();
-                        Log.d(TAG, "sync: msg failure!");
-                    }
+                error -> {
+                    error.printStackTrace();
+                    Toast.makeText(ctx, "Sync error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
                 }) {
 
             @Override
             public byte[] getBody() throws com.android.volley.AuthFailureError {
                 JSONObject params = new JSONObject();
                 try {
-                    params.put("to", instanceIdToken);
+                    params.put("to", dest);
                     params.put("data", data);
                     params.put("priority", "high");
                     params.put("time_to_live", 600);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
+                Log.d(TAG, params.toString());
                 return params.toString().getBytes();
             };
 
@@ -143,15 +170,21 @@ public class SyncService extends FirebaseMessagingService {
 
             @Override
             public Map<String, String> getHeaders() throws AuthFailureError {
-                HashMap<String, String> headers = new HashMap<String, String>();
+                HashMap<String, String> headers = new HashMap<>();
                 headers.put("Authorization", "key=AIzaSyB-Vm0Kspls57a2527vD5oSwiETHr2Y3qs");
                 headers.put("Content-Type", getBodyContentType());
                 return headers;
             }
         };
 
-        responseTime = System.currentTimeMillis();
         Volley.newRequestQueue(ctx).add(myReq);
+    }
+
+    public static void addReceiver(Object key, BiConsumer<Command, JSONArray> f) {
+        msgReceivers.put(key, f);
+    }
+    public static void removeReceiver(Object key) {
+        msgReceivers.remove(key);
     }
 
     @Override
@@ -170,10 +203,16 @@ public class SyncService extends FirebaseMessagingService {
             JSONArray args = null;
             try {
                 args = new JSONArray(data.get("args"));
-            } catch (JSONException e) {
+                Log.d(TAG, msg.getFrom() + ": " + cmd + ", took " + t + "ms");
+                Log.d(TAG, args.toString(2));
+            } catch (Exception e) {
                 e.printStackTrace();
             }
-            Log.d(TAG, msg.getFrom() + ": " + cmd + ", took " + t + "ms");
+
+            for (BiConsumer<Command, JSONArray> f : msgReceivers.values()) {
+                f.accept(cmd, args);
+            }
+
             MusicService music = MusicService.getInstance();
             switch (cmd) {
                 case UserJoined: {
@@ -181,6 +220,24 @@ public class SyncService extends FirebaseMessagingService {
                         String name = args.getString(0);
                         music.runOnUiThread(() ->
                                 Toast.makeText(music, name + " joined", Toast.LENGTH_SHORT).show());
+//                        music.addSyncedUser(sender);
+                        otherUsers.add(new User(sender, name));
+
+                        // Send the queue, from the previous song to end of the queue.
+                        List<Song> q = music.getPlayingQueue();
+                        sendMessage(this, sender, Command.QueueUpdate, new JSONArray(Stream.of(q)
+                                .skip(music.getPosition())
+                                .map(song -> {
+                                    JSONObject obj = new JSONObject();
+                                    try {
+                                        obj.put("title", song.title);
+                                        obj.put("artist", song.artistName);
+                                        obj.put("album", song.albumName);
+                                    } catch (JSONException e) {
+                                        e.printStackTrace();
+                                    }
+                                    return obj;
+                                }).collect(Collectors.toList())));
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
@@ -190,6 +247,9 @@ public class SyncService extends FirebaseMessagingService {
                         String name = args.getString(0);
                         music.runOnUiThread(() ->
                                 Toast.makeText(music, name + " left", Toast.LENGTH_SHORT).show());
+
+//                        MusicService.getInstance().getSyncedUsers().remove(sender);
+                        otherUsers.remove(new User(sender, name));
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
@@ -200,6 +260,8 @@ public class SyncService extends FirebaseMessagingService {
                 case Pause: {
                     music.pause();
                 } break;
+                case Stop:
+                    break;
                 case Next: {
                     music.playNextSong(true);
                 } break;
@@ -212,6 +274,8 @@ public class SyncService extends FirebaseMessagingService {
                 } catch (JSONException e) {
                     e.printStackTrace();
                 } break;
+                case QueueRemove:
+                    break;
                 case QueueSetPos: try {
                     int pos = args.getInt(0) + music.getPosition();
                     music.playSongAt(pos);
@@ -228,39 +292,45 @@ public class SyncService extends FirebaseMessagingService {
                 } catch (JSONException e) {
                     e.printStackTrace();
                 } break;
+                case QueueNext:
+                    break;
                 case QueueAdd: {
                     Log.d(TAG, "Queue add msg");
                     try {
                         // TODO: Multiple songs, as [{"song": "Name", ...}, {}, ...]
-                        String title = args.getString(0);
-                        String artist = args.getString(1);
-                        String album = args.getString(2);
+                        JSONArray songs = args.getJSONArray(0);
+                        for (int i = 0; i < songs.length(); i += 3) {
+                            String title = songs.getString(i);
+                            String artist = songs.getString(i + 1);
+                            String album = songs.getString(i + 2);
+                            Log.d(TAG, title + " - " + artist);
 
-                        Song song = SongLoader.getSong(SongLoader.makeSongCursor(
-                                this,
-                                ARTIST + AND + ALBUM + AND + TITLE,
-                                new String[]{artist.toLowerCase(), album.toLowerCase(), title.toLowerCase()}
-                        ));
+                            Song song = SongLoader.getSong(SongLoader.makeSongCursor(
+                                    this,
+                                    ARTIST + AND + ALBUM + AND + TITLE,
+                                    new String[]{artist.toLowerCase(), album.toLowerCase(), title.toLowerCase()}
+                            ));
 
-                        if (song != Song.EMPTY_SONG) {
-                            // Queue the song
-                            if (args.length() > 3) {
-                                int pos = args.getInt(3) + music.getPosition();
-                                music.addSong(pos, song);
+                            if (!song.equals(Song.EMPTY_SONG)) {
+                                // Queue the song
+                                if (args.length() > 1) {
+                                    int pos = args.getInt(1) + music.getPosition();
+                                    music.addSong(pos, song);
+                                } else {
+                                    music.addSong(song);
+                                }
                             } else {
-                                music.addSong(song);
-                            }
-                        } else {
-                            // We don't have the song!
-                            // Request to download it.
-                            if (args.length() > 3) {
-                                int pos = args.getInt(3);
-                                sendMessage(this, Command.RequestSong, title, artist, album, pos);
-                            } else {
-                                sendMessage(this, Command.RequestSong, title, artist, album);
+                                // We don't have the song!
+                                // Request to download it.
+                                Log.d(TAG, "Don't have '" + title + "', can I download?");
+                                if (args.length() > 1) {
+                                    int pos = args.getInt(1);
+                                    sendMessage(this, Command.RequestSong, title, artist, album, pos);
+                                } else {
+                                    sendMessage(this, Command.RequestSong, title, artist, album);
+                                }
                             }
                         }
-
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
@@ -282,38 +352,52 @@ public class SyncService extends FirebaseMessagingService {
                         ));
 
 
-                        // Host a TCP server to transfer the file.
-                        ServerSocket server = new ServerSocket(8080);
+//                        String publicIp = getPublicIp();
 
-                        Log.d(TAG, server.getInetAddress().getHostName());
-                        sendMessage(this, Command.TransferSong, title, artist, album, server.getInetAddress().getHostName(), 8080);
-                        server.setSoTimeout(10000);
-                        while (!server.isClosed()) {
-                            final Socket client = server.accept();
-                            if (!client.isConnected()) {
-                                server.close();
-                                break;
+                        // server side
+                        new Thread(() -> {
+                            try {
+                                // Make torrent tracker
+//                                Tracker tracker = new Tracker(new InetSocketAddress(6969));
+//                                tracker.start();
+//                                Log.d(TAG, "Made tracker!");
+
+                                java.io.File songFile = new java.io.File(song.data);
+                                java.io.File tempFile = new java.io.File(
+                                        getDataDir().getAbsolutePath() + "/" + songFile.getName());
+                                copy(songFile, tempFile);
+//                                songFile.setWritable(true, false);
+
+                                Torrent songTor = Torrent.create(
+                                        tempFile,
+                                        new URI("udp://tracker.opentrackr.org:1337"), // Use public tracker!
+                                        "PhonographSync"
+                                );
+//                                tracker.announce(songTor);
+                                Log.d(TAG, "Seeding '" + songFile.getName() + "'");
+
+                                Client seeder = new Client(
+                                        InetAddress.getLocalHost(),
+                                        new SharedTorrent(songTor, tempFile.getParentFile(), true)
+                                );
+                                seeder.share(600);
+
+                                sendMessage(this, SyncService.Command.TransferSong,
+                                        title,
+                                        artist,
+                                        album,
+                                        Base64.encodeToString(songTor.getEncoded(), Base64.DEFAULT));
+
+                                seeder.waitForCompletion();
+//                                tracker.stop();
+                                Log.d(TAG, "Seeder done");
+                            } catch (Exception e) {
+                                e.printStackTrace();
                             }
-                            OutputStream out = new BufferedOutputStream(client.getOutputStream());
-//                        InputStream in = client.getInputStream();
-                            new Thread(() -> {
-                                File file = new File(MusicUtil.getSongFileUri(song.id).getPath());
-                                try {
-                                    out.write((int) file.length());
-                                    FileReader reader = new FileReader(file);
-                                    while (reader.ready()) {
-                                        out.write(reader.read());
-                                    }
-                                    out.close();
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }
-                            }).start();
-                        }
+                        }).start();
+//                        sendMessage(this, Command.TransferSong, title, artist, album, publicIp, 6969);
 
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
 
@@ -323,39 +407,183 @@ public class SyncService extends FirebaseMessagingService {
                         String title = args.getString(0);
                         String artist = args.getString(1);
                         String album = args.getString(2);
-                        String ip = args.getString(3);
-                        int port = args.getInt(4);
+//                        String ip = args.getString(3);
+//                        int port = args.getInt(4);
 
-                        Socket client = new Socket();
-                        client.connect(new InetSocketAddress(ip, port));
+                        // client side
+                        byte[] torData = Base64.decode(args.getString(3), Base64.DEFAULT);
 
-                        File file = new File(
-                                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
-                                title + " - " + artist + " - " + album
-                        );
+                        SharedTorrent torrent = new SharedTorrent(
+                                torData,
+                                getDataDir(),
+                                false,
+                                new RequestStrategyImplSequential());
+                        Client client = new Client(InetAddress.getLocalHost(), torrent);
 
-                        InputStream in = new BufferedInputStream(client.getInputStream());
-//                    OutputStream out = client.getOutputStream();
-                        FileWriter writer = new FileWriter(file);
-                        int size = in.read();
-                        for (int i = 0; i < size; i += 4) {
-                            writer.write(in.read());
-                        }
-                        in.close();
-                        client.close();
+                        client.download();
+                        Log.d(TAG, "Torrent downloading");
 
+                        client.addObserver((observable, data1) -> {
+                            Client client1 = (Client) observable;
+                            float progress = client1.getTorrent().getCompletion();
+                            // Do something with progress.
+                            Log.d(TAG, "Torrent progress: " + progress);
+                        });
 
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
+//                        client.waitForCompletion();
+//                        Log.d(TAG, "Torrent completed!");
+
+//                        MediaScannerConnection.scanFile(
+//                                this,
+//                                new String[]{file.getAbsolutePath()},
+//                                null,
+//                                (path, uri) -> {
+//                                    // Now, retrieve the song instance!
+//                                    Song song = SongLoader.getSong(SongLoader.makeSongFileCursor(
+//                                            this,
+//                                            file.getPath()
+//                                    ));
+//                                    // Add to queue where it's supposed to go.
+//
+//                                });
+
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
                 } break;
+
+                case QueueUpdate: {
+                    try {
+                        JSONArray otherQueue = args.getJSONArray(0);
+                        List<Song> queue = music.getPlayingQueue();
+                        int currPos = music.getPosition();
+                        int i = 0;
+                        for (; i < otherQueue.length(); ++i) {
+                            JSONObject otherSong = otherQueue.getJSONObject(i);
+                            int relativeIdx = currPos + i;
+                            Song song = queue.get(relativeIdx);
+                            if (song.title.equals(otherSong.getString("title"))
+                                    && song.artistName.equals(otherSong.getString("artist"))
+                                    && song.albumName.equals(otherSong.getString("album"))) {
+                                // Song matches, do nothing
+                            } else {
+                                // Song different, replace all from here.
+                                break;
+                            }
+                        }
+                        for (; i < otherQueue.length(); ++i) {
+                            JSONObject otherSong = otherQueue.getJSONObject(i);
+                            int relativeIdx = currPos + i;
+
+                            Song song = SongLoader.getSong(SongLoader.makeSongCursor(
+                                    this,
+                                    ARTIST + AND + ALBUM + AND + TITLE,
+                                    new String[] {
+                                        otherSong.getString("artist"),
+                                        otherSong.getString("album"),
+                                        otherSong.getString("title")
+                                    }
+                            ));
+
+                            if (relativeIdx <= queue.size() - 1) {
+                                queue.set(relativeIdx, song);
+                            } else {
+                                queue.add(song);
+                            }
+                        }
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                } break;
+
+                case AlbumCheck: try {
+                    String album = args.getString(0);
+                    Song first = SongLoader.getSong(SongLoader.makeSongCursor(
+                            this, ALBUM,
+                            new String[]{album.toLowerCase()}
+                    ));
+
+                    sendMessage(this, Command.AlbumStatus, !first.equals(Song.EMPTY_SONG));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } break;
+
+                case ArtistCheck: try {
+                    String artist = args.getString(0);
+                    Song first = SongLoader.getSong(SongLoader.makeSongCursor(
+                            this, ARTIST,
+                            new String[]{artist.toLowerCase()}
+                    ));
+
+                    sendMessage(this, Command.ArtistStatus, !first.equals(Song.EMPTY_SONG));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } break;
+
+                case Ping: {
+                    try {
+                        boolean response = args.getBoolean(0);
+                        if (response) {
+                            // Ping succeeded, we were the original sender.
+                        } else {
+                            sendMessage(this, Command.Ping, true);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } break;
+
+                case QueueNow:
+                    break;
+                case QueueRequest:
+                    break;
             }
 
         }
         MusicService.getInstance().setSyncedQueue(true);
-
         // TODO: Use the notification bit for when users join or leave the connection.
+    }
+
+    private String getLocalIpAddress() {
+        try {
+            for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
+                NetworkInterface intf = en.nextElement();
+                for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();) {
+                    InetAddress inetAddress = enumIpAddr.nextElement();
+                    if (!inetAddress.isLoopbackAddress()) { return inetAddress.getHostAddress().toString(); }
+                }
+            }
+        } catch (SocketException ex) {
+            Log.e("ServerActivity", ex.toString());
+        }
+        return null;
+    }
+
+    public static String getPublicIp() throws Exception {
+        URL whatsmyip = new URL("http://checkip.amazonaws.com");
+        BufferedReader in = null;
+        try {
+            in = new BufferedReader(new InputStreamReader(whatsmyip.openStream()));
+            String ip = in.readLine();
+            return ip;
+        } finally {
+            if (in != null) {
+                try {
+                    in.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public static void copy(File src, File dst) throws IOException {
+        FileInputStream inStream = new FileInputStream(src);
+        FileOutputStream outStream = new FileOutputStream(dst);
+        FileChannel inChannel = inStream.getChannel();
+        FileChannel outChannel = outStream.getChannel();
+        inChannel.transferTo(0, inChannel.size(), outChannel);
+        inStream.close();
+        outStream.close();
     }
 }

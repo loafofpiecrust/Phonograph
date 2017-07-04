@@ -16,6 +16,9 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.READ_PROFILE" />
 
+    <!-- To auto-complete the email text field in the login form with the user's emails -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+
     <application
         android:name=".App"
         android:allowBackup="true"
@@ -204,9 +207,17 @@
             android:name=".service.SyncTokenService"
             android:enabled="true">
             <intent-filter>
-                <action android:name="com.google.firebase.INSTANCE_ID_EVENT"/>
+                <action android:name="com.google.firebase.INSTANCE_ID_EVENT" />
             </intent-filter>
         </service>
+
+        <activity
+            android:name=".LoginActivity"
+            android:label="@string/title_activity_login" />
+        <activity
+            android:name=".ui.activities.SyncLoginActivity"
+            android:label="@string/title_activity_sync_login"
+            android:theme="@style/Theme.Phonograph.Light"></activity>
     </application>
 
 </manifest>

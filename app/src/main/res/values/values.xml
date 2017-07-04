@@ -4,4 +4,7 @@
     <string name="transition_artist_image">artist_image_transition</string>
     <string name="transition_fab">fab_transition</string>
     <string name="transition_mini_player">mini_player_transition</string>
+
+    <dimen name="abc_text_size_title_material">18sp</dimen>
+    <dimen name="abc_text_size_title_material_toolbar">18sp</dimen>
 </resources>

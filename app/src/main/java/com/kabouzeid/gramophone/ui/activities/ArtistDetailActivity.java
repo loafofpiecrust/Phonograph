@@ -3,7 +3,6 @@ package com.kabouzeid.gramophone.ui.activities;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
-import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -27,14 +26,8 @@ import com.afollestad.materialcab.MaterialCab;
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.afollestad.materialdialogs.util.DialogUtils;
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
-import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.RequestOptions;
-import com.bumptech.glide.request.target.SimpleTarget;
-import com.bumptech.glide.request.target.Target;
-import com.bumptech.glide.request.transition.Transition;
-import com.github.florent37.glidepalette.BitmapPalette;
 import com.github.florent37.glidepalette.GlidePalette;
 import com.github.ksoichiro.android.observablescrollview.ObservableListView;
 import com.kabouzeid.appthemehelper.util.ColorUtil;
@@ -43,7 +36,6 @@ import com.kabouzeid.gramophone.R;
 import com.kabouzeid.gramophone.adapter.album.HorizontalAlbumAdapter;
 import com.kabouzeid.gramophone.adapter.song.ArtistSongAdapter;
 import com.kabouzeid.gramophone.dialogs.SleepTimerDialog;
-import com.kabouzeid.gramophone.glide.PhonographColoredTarget;
 import com.kabouzeid.gramophone.glide.artistimage.ArtistImage;
 import com.kabouzeid.gramophone.helper.MusicPlayerRemote;
 import com.kabouzeid.gramophone.interfaces.CabHolder;
@@ -55,6 +47,7 @@ import com.kabouzeid.gramophone.loader.ArtistLoader;
 import com.kabouzeid.gramophone.misc.SimpleObservableScrollViewCallbacks;
 import com.kabouzeid.gramophone.misc.WrappedAsyncTaskLoader;
 import com.kabouzeid.gramophone.model.Artist;
+import com.kabouzeid.gramophone.service.SyncService;
 import com.kabouzeid.gramophone.ui.activities.base.AbsSlidingMusicPanelActivity;
 import com.kabouzeid.gramophone.util.ArtistSignatureUtil;
 import com.kabouzeid.gramophone.util.NavigationUtil;
@@ -69,6 +62,7 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 import static com.kabouzeid.gramophone.glide.SongGlideRequest.DEFAULT_DISK_CACHE_STRATEGY;
+import static com.kabouzeid.gramophone.glide.SongGlideRequest.DEFAULT_PALETTE_PROFILE;
 
 /**
  * Be careful when changing things in this Activity!
@@ -264,35 +258,35 @@ public class ArtistDetailActivity extends AbsSlidingMusicPanelActivity implement
         Glide.with(this)
                 .load(new ArtistImage(getArtist().getName(), forceDownload))
                 .listener(GlidePalette.with(getArtist().getName())
-                        .use(GlidePalette.Profile.VIBRANT)
+                        .use(DEFAULT_PALETTE_PROFILE)
                         .intoCallBack(palette -> {
-                            int color = PhonographColorUtil.getColor(palette, Color.TRANSPARENT);
-                            setColors(color);
+                            setColors(PhonographColorUtil.getColor(palette, Color.TRANSPARENT));
                         })
                 )
                 .apply(new RequestOptions()
                         .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
-                        .placeholder(R.drawable.default_artist_image)
-                        .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+                        .error(R.drawable.default_artist_image)
+//                        .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                         .signature(ArtistSignatureUtil.getInstance(this).getArtistSignature(getArtist().getName())))
                 .transition(new DrawableTransitionOptions().dontTransition())
+                .into(artistImage);
 //                .transcode(new BitmapPaletteTranscoder(this), BitmapPaletteWrapper.class)
 //                .dontAnimate()
-                .into(new SimpleTarget<Drawable>() {
-                    @Override
-                    public void onResourceReady(Drawable resource, Transition<? super Drawable> transition) {
-                        if (forceDownload) {
-                            Toast.makeText(ArtistDetailActivity.this, getString(R.string.updated_artist_image), Toast.LENGTH_SHORT).show();
-                        }
-                    }
-
-                    @Override
-                    public void onLoadFailed(Drawable e) {
-                        if (forceDownload) {
-                            Toast.makeText(ArtistDetailActivity.this, e != null ? e.getClass().getSimpleName() : "Error", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                });
+//                .into(new SimpleTarget<Drawable>() {
+//                    @Override
+//                    public void onResourceReady(Drawable resource, Transition<? super Drawable> transition) {
+//                        if (forceDownload) {
+//                            Toast.makeText(ArtistDetailActivity.this, getString(R.string.updated_artist_image), Toast.LENGTH_SHORT).show();
+//                        }
+//                    }
+//
+//                    @Override
+//                    public void onLoadFailed(Drawable e) {
+//                        if (forceDownload) {
+//                            Toast.makeText(ArtistDetailActivity.this, e != null ? e.getClass().getSimpleName() : "Error", Toast.LENGTH_SHORT).show();
+//                        }
+//                    }
+//                });
 //                .into(new PhonographColoredTarget(artistImage) {
 //                    @Override
 //                    public void onColorReady(int color) {
@@ -417,8 +411,14 @@ public class ArtistDetailActivity extends AbsSlidingMusicPanelActivity implement
 
     @Override
     public void setStatusbarColor(int color) {
+        boolean light = ColorUtil.isColorLight(color);
+        if (light) {
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(0);
+        }
+        setLightStatusbar(light);
         super.setStatusbarColor(color);
-        setLightStatusbar(false);
     }
 
     private void setArtist(Artist artist) {
@@ -442,6 +442,9 @@ public class ArtistDetailActivity extends AbsSlidingMusicPanelActivity implement
 
     @Override
     public void onLoadFinished(Loader<Artist> loader, Artist data) {
+        // Check other users' status for this artist
+        SyncService.sendMessage(this, SyncService.Command.ArtistCheck, data.getName());
+
         supportStartPostponedEnterTransition();
         setArtist(data);
     }

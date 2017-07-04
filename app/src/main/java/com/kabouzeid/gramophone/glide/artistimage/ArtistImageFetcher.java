@@ -1,7 +1,6 @@
 package com.kabouzeid.gramophone.glide.artistimage;
 
 import android.content.Context;
-import android.renderscript.ScriptGroup;
 
 import com.bumptech.glide.Priority;
 import com.bumptech.glide.load.DataSource;

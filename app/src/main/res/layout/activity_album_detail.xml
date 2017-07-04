@@ -33,20 +33,40 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/title"
+        <LinearLayout
+            android:id="@+id/title_header"
             android:layout_width="match_parent"
-            android:layout_height="@dimen/title_view_height"
-            android:height="@dimen/title_view_height"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:background="?attr/defaultFooterColor"
-            android:elevation="@dimen/toolbar_elevation"
-            android:fontFamily="sans-serif-medium"
-            android:gravity="center_vertical"
-            android:paddingLeft="72dp"
-            android:paddingRight="72dp"
-            android:singleLine="true"
-            android:textAppearance="@style/TextAppearance.AppCompat.Title"
-            tools:ignore="UnusedAttribute" />
+            android:elevation="@dimen/toolbar_elevation">
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/title_view_height"
+                android:height="@dimen/title_view_height"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center_vertical"
+                android:paddingLeft="65dp"
+                android:paddingRight="72dp"
+                android:paddingTop="10dp"
+                android:singleLine="true"
+                android:textSize="18sp"
+                android:textAppearance="@style/TextAppearance.AppCompat.Title"
+                tools:ignore="UnusedAttribute" />
+
+            <TextView
+                android:id="@+id/title2"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/subtitle_view_height"
+                android:textAppearance="@style/TextAppearance.AppCompat.Subhead"
+                android:paddingLeft="65dp"
+                android:paddingRight="72dp"
+                android:singleLine="true"
+                android:gravity="top"
+                tools:ignore="UnusedAttribute" />
+        </LinearLayout>
 
         <View
             android:layout_width="match_parent"
@@ -55,7 +75,7 @@
 
     </LinearLayout>
 
-    <include layout="@layout/shadow_statusbar_toolbar" />
+    <!--<include layout="@layout/shadow_statusbar_toolbar" />-->
 
     <LinearLayout
         android:layout_width="match_parent"

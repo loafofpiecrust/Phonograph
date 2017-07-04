@@ -404,7 +404,7 @@ public final class PreferenceUtil {
     }
 
     public String getSyncChannel() {
-        return mPreferences.getString(SYNC_CHANNEL, "");
+        return mPreferences.getString(SYNC_CHANNEL, "").trim().toLowerCase().replaceAll("[ \t\n]+", "-");
     }
 
     public void setSyncChannel(String channel) {
